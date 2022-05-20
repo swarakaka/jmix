@@ -121,8 +121,7 @@ public class FlowuiSecurityConfiguration extends StandardSecurityConfiguration {
         // be handled on the client side using e.g. `InvalidSessionMiddleware`.
         http.exceptionHandling()
                 .accessDeniedHandler(createAccessDeniedHandler())
-                .defaultAuthenticationEntryPointFor(
-                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                .defaultAuthenticationEntryPointFor(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
                         requestUtil::isEndpointRequest);
 
         // Vaadin has its own CSRF protection.
@@ -136,8 +135,8 @@ public class FlowuiSecurityConfiguration extends StandardSecurityConfiguration {
         // login
         http.requestCache().requestCache(vaadinDefaultRequestCache);
 
-        ExpressionUrlAuthorizationConfigurer<HttpSecurity>.ExpressionInterceptUrlRegistry urlRegistry = http
-                .authorizeRequests();
+        ExpressionUrlAuthorizationConfigurer<HttpSecurity>.ExpressionInterceptUrlRegistry urlRegistry =
+                http.authorizeRequests();
 
         // Vaadin internal requests must always be allowed to allow public Flow
         // pages
@@ -148,7 +147,8 @@ public class FlowuiSecurityConfiguration extends StandardSecurityConfiguration {
         urlRegistry.requestMatchers(requestUtil::isAnonymousEndpoint).permitAll();
         // Public routes are OK to access
         urlRegistry.requestMatchers(requestUtil::isAnonymousRoute).permitAll();
-        urlRegistry.requestMatchers(getDefaultHttpSecurityPermitMatcher(getUrlMapping())).permitAll();
+        urlRegistry.requestMatchers(
+                getDefaultHttpSecurityPermitMatcher(getUrlMapping())).permitAll();
 
         // all other requests require authentication
         urlRegistry.anyRequest().authenticated();
@@ -221,8 +221,7 @@ public class FlowuiSecurityConfiguration extends StandardSecurityConfiguration {
         setLoginScreen(http, screenId, LOGOUT_SUCCESS_URL);
     }
 
-    protected void setLoginScreen(HttpSecurity http, String screenId,
-                                  String logoutUrl) throws Exception {
+    protected void setLoginScreen(HttpSecurity http, String screenId, String logoutUrl) throws Exception {
         Class<? extends Screen> controllerClass =
                 screenRegistry.getScreenInfo(screenId).getControllerClass();
 
