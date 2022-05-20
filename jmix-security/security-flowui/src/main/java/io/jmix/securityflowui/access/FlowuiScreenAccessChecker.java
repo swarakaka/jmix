@@ -21,14 +21,18 @@ import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterListener;
 import com.vaadin.flow.router.NotFoundException;
 import com.vaadin.flow.server.VaadinServletRequest;
+import com.vaadin.flow.server.auth.AccessAnnotationChecker;
 import com.vaadin.flow.server.auth.ViewAccessChecker;
 import io.jmix.core.AccessManager;
+import io.jmix.core.security.SecurityContextHelper;
 import io.jmix.flowui.accesscontext.FlowuiShowScreenContext;
 import io.jmix.flowui.screen.Screen;
 import io.jmix.flowui.screen.UiController;
 import io.jmix.flowui.sys.UiDescriptorUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -37,11 +41,11 @@ public class FlowuiScreenAccessChecker implements BeforeEnterListener {
     private static final Logger log = LoggerFactory.getLogger(FlowuiScreenAccessChecker.class);
 
     protected final AccessManager accessManager;
+    protected final AccessAnnotationChecker accessAnnotationChecker;
 
     protected boolean enabled;
 
-    protected Class<? extends Component> loginView;
-    protected String loginUrl;
+    protected Class<? extends Component> loginScreen;
 
     public FlowuiScreenAccessChecker(AccessManager accessManager) {
         this(true, accessManager);
@@ -50,56 +54,28 @@ public class FlowuiScreenAccessChecker implements BeforeEnterListener {
     public FlowuiScreenAccessChecker(boolean enabled, AccessManager accessManager) {
         this.enabled = enabled;
         this.accessManager = accessManager;
+        this.accessAnnotationChecker = new AccessAnnotationChecker();
     }
 
     /**
      * Enables the access checker.
      * <p>
-     * This must be called for the access checker to perform any checks. By
-     * default the access checker is disabled.
+     * This must be called for the access checker to perform any checks.
+     * By default, the access checker is disabled.
      */
     public void enable() {
         this.enabled = true;
     }
 
-    /**
-     * Sets the Flow login view to use.
-     * <p>
-     * The login view can only be set once and cannot be changed afterwards.
-     * <p>
-     * Note that the access checker needs to be separately enabled using
-     * {@link #enable()}
-     *
-     * @param loginView the Flow view to use as login view
-     */
-    public void setLoginView(Class<? extends Component> loginView) {
-        throwIfLoginViewSet();
-        this.loginView = loginView;
+    public void setLoginScreen(Class<? extends Component> loginScreen) {
+        throwIfLoginScreenSet();
+        this.loginScreen = loginScreen;
     }
 
-    /**
-     * Sets the frontend login view to use.
-     * <p>
-     * The login view can only be set once and cannot be changed afterwards.
-     * <p>
-     * Note that the access checker needs to be separately enabled using
-     * {@link #enable()}
-     *
-     * @param loginUrl the frontend view to use as login view
-     */
-    public void setLoginView(String loginUrl) {
-        throwIfLoginViewSet();
-        this.loginUrl = loginUrl;
-    }
-
-    protected void throwIfLoginViewSet() {
-        if (this.loginUrl != null) {
-            throw new IllegalStateException(
-                    "Already using " + this.loginUrl + " as the login view");
-        }
-        if (this.loginView != null) {
+    protected void throwIfLoginScreenSet() {
+        if (this.loginScreen != null) {
             throw new IllegalStateException("Already using "
-                    + this.loginView.getName() + " as the login view");
+                    + this.loginScreen.getName() + " as the login screen");
         }
     }
 
@@ -109,10 +85,6 @@ public class FlowuiScreenAccessChecker implements BeforeEnterListener {
             return;
         }
         Class<?> targetView = beforeEnterEvent.getNavigationTarget();
-        if (!isSupportedScreen(targetView)) {
-            log.debug("Skipping view {}", targetView.getName());
-            return;
-        }
 
         VaadinServletRequest vaadinServletRequest = VaadinServletRequest.getCurrent();
         if (vaadinServletRequest == null) {
@@ -124,40 +96,37 @@ public class FlowuiScreenAccessChecker implements BeforeEnterListener {
             return;
         }
 
-        HttpServletRequest httpServletRequest = vaadinServletRequest
-                .getHttpServletRequest();
         log.debug("Checking access for view {}", targetView.getName());
-        if (loginView != null && targetView == loginView) {
+        if (loginScreen != null && targetView == loginScreen) {
             log.debug("Allowing access for login view {}", targetView.getName());
             return;
         }
 
-        String screenId = UiDescriptorUtils.getInferredScreenId(targetView);
-        FlowuiShowScreenContext context = new FlowuiShowScreenContext(screenId);
-        accessManager.applyRegisteredConstraints(context);
-        if (context.isPermitted()) {
+        HttpServletRequest httpServletRequest = vaadinServletRequest.getHttpServletRequest();
+        boolean hasAccess = isHasAccess(targetView, httpServletRequest);
+
+        if (!hasAccess && isSupportedScreen(targetView)) {
+            hasAccess = isHasSecurityPermission(targetView);
+        }
+
+        if (hasAccess) {
             log.debug("Allowed access to view {}", targetView.getName());
             return;
         }
 
         log.debug("Denied access to view {}", targetView.getName());
-        // TODO: gg, isAnonymousAuthentication()
-        if (httpServletRequest.getUserPrincipal() == null) {
+        if (isAnonymousAuthentication()) {
             httpServletRequest.getSession()
                     // Use constant from Vaadin class to avoid
                     // VaadinSavedRequestAwareAuthenticationSuccessHandler extension
                     .setAttribute(ViewAccessChecker.SESSION_STORED_REDIRECT, beforeEnterEvent
                             .getLocation().getPathWithQueryParameters());
-            if (loginView != null) {
-                beforeEnterEvent.forwardTo(loginView);
+            if (loginScreen != null) {
+                beforeEnterEvent.forwardTo(loginScreen);
             } else {
                 // Prevent the view from being created
                 // TODO: gg, throw an exception?
                 beforeEnterEvent.rerouteToError(NotFoundException.class);
-
-                if (loginUrl != null) {
-                    beforeEnterEvent.getUI().getPage().setLocation(loginUrl);
-                }
             }
         } else if (isProductionMode(beforeEnterEvent)) {
             // Intentionally does not reveal if the route exists
@@ -169,6 +138,19 @@ public class FlowuiScreenAccessChecker implements BeforeEnterListener {
         }
     }
 
+    protected boolean isHasAccess(Class<?> targetView, HttpServletRequest httpServletRequest) {
+        return accessAnnotationChecker.hasAccess(targetView, httpServletRequest);
+    }
+
+    protected boolean isHasSecurityPermission(Class<?> targetView) {
+        boolean hasAccess;
+        String screenId = UiDescriptorUtils.getInferredScreenId(targetView);
+        FlowuiShowScreenContext context = new FlowuiShowScreenContext(screenId);
+        accessManager.applyRegisteredConstraints(context);
+        hasAccess = context.isPermitted();
+        return hasAccess;
+    }
+
     protected boolean isSupportedScreen(Class<?> targetView) {
         return Screen.class.isAssignableFrom(targetView)
                 && targetView.getAnnotation(UiController.class) != null;
@@ -177,5 +159,11 @@ public class FlowuiScreenAccessChecker implements BeforeEnterListener {
     protected boolean isProductionMode(BeforeEnterEvent beforeEnterEvent) {
         return beforeEnterEvent.getUI().getSession().getConfiguration()
                 .isProductionMode();
+    }
+
+    protected boolean isAnonymousAuthentication() {
+        Authentication authentication = SecurityContextHelper.getAuthentication();
+        return authentication == null ||
+                authentication instanceof AnonymousAuthenticationToken;
     }
 }

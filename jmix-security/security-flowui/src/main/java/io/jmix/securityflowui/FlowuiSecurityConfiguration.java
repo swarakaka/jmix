@@ -11,29 +11,23 @@ import com.vaadin.flow.spring.security.RequestUtil;
 import com.vaadin.flow.spring.security.VaadinAwareSecurityContextHolderStrategy;
 import com.vaadin.flow.spring.security.VaadinDefaultRequestCache;
 import com.vaadin.flow.spring.security.VaadinSavedRequestAwareAuthenticationSuccessHandler;
-import io.jmix.core.security.PostAuthenticationChecks;
-import io.jmix.core.security.PreAuthenticationChecks;
-import io.jmix.core.security.UserRepository;
-import io.jmix.core.security.impl.SubstitutedUserAuthenticationProvider;
-import io.jmix.core.security.impl.SystemAuthenticationProvider;
+import io.jmix.core.JmixOrder;
 import io.jmix.flowui.FlowuiProperties;
 import io.jmix.flowui.screen.Screen;
 import io.jmix.flowui.screen.ScreenRegistry;
+import io.jmix.security.StandardSecurityConfiguration;
 import io.jmix.securityflowui.access.FlowuiScreenAccessChecker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.annotation.web.configurers.ExpressionUrlAuthorizationConfigurer;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.access.DelegatingAccessDeniedHandler;
@@ -52,26 +46,24 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.LinkedHashMap;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public abstract class FlowuiWebSecurityConfigurerAdapter extends WebSecurityConfigurerAdapter {
+import static io.jmix.core.common.util.Preconditions.checkNotNullArgument;
 
-    private static final Logger log = LoggerFactory.getLogger(FlowuiWebSecurityConfigurerAdapter.class);
+@Order(JmixOrder.HIGHEST_PRECEDENCE + 100)
+public class FlowuiSecurityConfiguration extends StandardSecurityConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(FlowuiSecurityConfiguration.class);
 
     public static final String LOGOUT_SUCCESS_URL = "/";
 
-
     protected VaadinDefaultRequestCache vaadinDefaultRequestCache;
     protected VaadinConfigurationProperties configurationProperties;
-    protected FlowuiScreenAccessChecker viewAccessChecker;
     protected RequestUtil requestUtil;
-    protected UserRepository userRepository;
-    protected PasswordEncoder passwordEncoder;
-    protected PreAuthenticationChecks preAuthenticationChecks;
-    protected PostAuthenticationChecks postAuthenticationChecks;
+
+    protected FlowuiScreenAccessChecker screenAccessChecker;
     protected FlowuiProperties flowuiProperties;
     protected ScreenRegistry screenRegistry;
 
@@ -86,33 +78,13 @@ public abstract class FlowuiWebSecurityConfigurerAdapter extends WebSecurityConf
     }
 
     @Autowired
-    public void setViewAccessChecker(FlowuiScreenAccessChecker viewAccessChecker) {
-        this.viewAccessChecker = viewAccessChecker;
-    }
-
-    @Autowired
     public void setRequestUtil(RequestUtil requestUtil) {
         this.requestUtil = requestUtil;
     }
 
     @Autowired
-    public void setUserRepository(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
-
-    @Autowired
-    public void setPasswordEncoder(PasswordEncoder passwordEncoder) {
-        this.passwordEncoder = passwordEncoder;
-    }
-
-    @Autowired
-    public void setPreAuthenticationChecks(PreAuthenticationChecks preAuthenticationChecks) {
-        this.preAuthenticationChecks = preAuthenticationChecks;
-    }
-
-    @Autowired
-    public void setPostAuthenticationChecks(PostAuthenticationChecks postAuthenticationChecks) {
-        this.postAuthenticationChecks = postAuthenticationChecks;
+    public void setScreenAccessChecker(FlowuiScreenAccessChecker screenAccessChecker) {
+        this.screenAccessChecker = screenAccessChecker;
     }
 
     @Autowired
@@ -123,20 +95,6 @@ public abstract class FlowuiWebSecurityConfigurerAdapter extends WebSecurityConf
     @Autowired
     public void setScreenRegistry(ScreenRegistry screenRegistry) {
         this.screenRegistry = screenRegistry;
-    }
-
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) {
-        auth.authenticationProvider(new SystemAuthenticationProvider(userRepository));
-        auth.authenticationProvider(new SubstitutedUserAuthenticationProvider(userRepository));
-
-        DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider();
-        daoAuthenticationProvider.setUserDetailsService(userRepository);
-        daoAuthenticationProvider.setPasswordEncoder(passwordEncoder);
-        daoAuthenticationProvider.setPreAuthenticationChecks(preAuthenticationChecks);
-        daoAuthenticationProvider.setPostAuthenticationChecks(postAuthenticationChecks);
-
-        auth.authenticationProvider(daoAuthenticationProvider);
     }
 
     /**
@@ -186,16 +144,17 @@ public abstract class FlowuiWebSecurityConfigurerAdapter extends WebSecurityConf
         // and/or login page implemented using Flow.
         urlRegistry.requestMatchers(requestUtil::isFrameworkInternalRequest)
                 .permitAll();
-
+        // Public endpoints are OK to access
+        urlRegistry.requestMatchers(requestUtil::isAnonymousEndpoint).permitAll();
         // Public routes are OK to access
-//        urlRegistry.requestMatchers(requestSupport::isAnonymousRoute).permitAll();
+        urlRegistry.requestMatchers(requestUtil::isAnonymousRoute).permitAll();
         urlRegistry.requestMatchers(getDefaultHttpSecurityPermitMatcher(getUrlMapping())).permitAll();
 
         // all other requests require authentication
         urlRegistry.anyRequest().authenticated();
 
         // Enable view access control
-        viewAccessChecker.enable();
+        screenAccessChecker.enable();
 
         initLoginScreen(http);
     }
@@ -207,9 +166,7 @@ public abstract class FlowuiWebSecurityConfigurerAdapter extends WebSecurityConf
             return;
         }
 
-        // TODO: gg, reimplement with Id
-        Class<? extends Screen> controllerClass = screenRegistry.getScreenInfo(loginScreenId).getControllerClass();
-        setLoginView(http, controllerClass, LOGOUT_SUCCESS_URL);
+        setLoginScreen(http, loginScreenId);
     }
 
     /**
@@ -220,8 +177,8 @@ public abstract class FlowuiWebSecurityConfigurerAdapter extends WebSecurityConf
      * @return default {@link HttpSecurity} bypass matcher
      */
     public static RequestMatcher getDefaultHttpSecurityPermitMatcher(String urlMapping) {
-        Objects.requireNonNull(urlMapping,
-                "Vaadin servlet url mapping is required");
+        checkNotNullArgument(urlMapping, "Vaadin servlet url mapping is required");
+
         Stream.Builder<String> paths = Stream.builder();
         Stream.of(HandlerHelper.getPublicResourcesRequiringSecurityContext())
                 .map(path -> applyUrlMapping(urlMapping, path))
@@ -252,88 +209,42 @@ public abstract class FlowuiWebSecurityConfigurerAdapter extends WebSecurityConf
      * @return default {@link WebSecurity} ignore matcher
      */
     public static RequestMatcher getDefaultWebSecurityIgnoreMatcher(String urlMapping) {
-        Objects.requireNonNull(urlMapping,
-                "Vaadin servlet url mapping is required");
+        checkNotNullArgument(urlMapping, "Vaadin servlet url mapping is required");
+
         return new OrRequestMatcher(Stream
                 .of(HandlerHelper.getPublicResources())
                 .map(path -> applyUrlMapping(urlMapping, path))
                 .map(AntPathRequestMatcher::new).collect(Collectors.toList()));
     }
 
-    /**
-     * Sets up login for the application using form login with the given path
-     * for the login view.
-     * <p>
-     * This is used when your application uses a Fusion based login view
-     * available at the given path.
-     *
-     * @param http                the http security from {@link #configure(HttpSecurity)}
-     * @param fusionLoginViewPath the path to the login view
-     * @throws Exception if something goes wrong
-     */
-    // TODO: gg, rename to screen Id and handle ID
-    protected void setLoginView(HttpSecurity http, String fusionLoginViewPath) throws Exception {
-        setLoginView(http, fusionLoginViewPath, LOGOUT_SUCCESS_URL);
+    protected void setLoginScreen(HttpSecurity http, String screenId) throws Exception {
+        setLoginScreen(http, screenId, LOGOUT_SUCCESS_URL);
     }
 
-    /**
-     * Sets up login for the application using form login with the given path
-     * for the login view.
-     * <p>
-     * This is used when your application uses a Fusion based login view
-     * available at the given path.
-     *
-     * @param http                the http security from {@link #configure(HttpSecurity)}
-     * @param fusionLoginViewPath the path to the login view
-     * @param logoutUrl           the URL to redirect the user to after logging out
-     * @throws Exception if something goes wrong
-     */
-    // TODO: gg, rename to screen Id and handle ID
-    protected void setLoginView(HttpSecurity http, String fusionLoginViewPath,
-                                String logoutUrl) throws Exception {
-        fusionLoginViewPath = applyUrlMapping(fusionLoginViewPath);
-        FormLoginConfigurer<HttpSecurity> formLogin = http.formLogin();
-        formLogin.loginPage(fusionLoginViewPath).permitAll();
-        formLogin.successHandler(
-                getVaadinSavedRequestAwareAuthenticationSuccessHandler(http));
-        http.logout().logoutSuccessUrl(logoutUrl);
-        http.exceptionHandling().defaultAuthenticationEntryPointFor(
-                new LoginUrlAuthenticationEntryPoint(fusionLoginViewPath),
-                AnyRequestMatcher.INSTANCE);
-        viewAccessChecker.setLoginView(fusionLoginViewPath);
+    protected void setLoginScreen(HttpSecurity http, String screenId,
+                                  String logoutUrl) throws Exception {
+        Class<? extends Screen> controllerClass =
+                screenRegistry.getScreenInfo(screenId).getControllerClass();
+
+        setLoginScreen(http, controllerClass, logoutUrl);
     }
 
-    /**
-     * Sets up login for the application using the given Flow login view.
-     *
-     * @param http          the http security from {@link #configure(HttpSecurity)}
-     * @param flowLoginView the login view to use
-     * @throws Exception if something goes wrong
-     */
-    protected void setLoginView(HttpSecurity http,
-                                Class<? extends Component> flowLoginView) throws Exception {
-        setLoginView(http, flowLoginView, LOGOUT_SUCCESS_URL);
+    protected void setLoginScreen(HttpSecurity http,
+                                  Class<? extends Component> screenClass) throws Exception {
+        setLoginScreen(http, screenClass, LOGOUT_SUCCESS_URL);
     }
 
-    /**
-     * Sets up login for the application using the given Flow login view.
-     *
-     * @param http          the http security from {@link #configure(HttpSecurity)}
-     * @param flowLoginView the login view to use
-     * @param logoutUrl     the URL to redirect the user to after logging out
-     * @throws Exception if something goes wrong
-     */
-    protected void setLoginView(HttpSecurity http,
-                                Class<? extends Component> flowLoginView, String logoutUrl) throws Exception {
-        Optional<Route> route = AnnotationReader.getAnnotationFor(flowLoginView, Route.class);
+    protected void setLoginScreen(HttpSecurity http,
+                                  Class<? extends Component> screenClass, String logoutUrl) throws Exception {
+        Optional<Route> route = AnnotationReader.getAnnotationFor(screenClass, Route.class);
 
         if (route.isEmpty()) {
             throw new IllegalArgumentException(
                     "Unable find a @Route annotation on the login view "
-                            + flowLoginView.getName());
+                            + screenClass.getName());
         }
 
-        String loginPath = RouteUtil.getRoutePath(flowLoginView, route.get());
+        String loginPath = RouteUtil.getRoutePath(screenClass, route.get());
         if (!loginPath.startsWith("/")) {
             loginPath = "/" + loginPath;
         }
@@ -342,54 +253,51 @@ public abstract class FlowuiWebSecurityConfigurerAdapter extends WebSecurityConf
         // Actually set it up
         FormLoginConfigurer<HttpSecurity> formLogin = http.formLogin();
         formLogin.loginPage(loginPath).permitAll();
-        formLogin.successHandler(
-                getVaadinSavedRequestAwareAuthenticationSuccessHandler(http));
+        formLogin.successHandler(createSuccessHandler(http));
+
         http.csrf().ignoringAntMatchers(loginPath);
         http.logout().logoutSuccessUrl(logoutUrl);
         http.exceptionHandling().defaultAuthenticationEntryPointFor(
-                new LoginUrlAuthenticationEntryPoint(loginPath),
-                AnyRequestMatcher.INSTANCE);
-        viewAccessChecker.setLoginView(flowLoginView);
+                new LoginUrlAuthenticationEntryPoint(loginPath), AnyRequestMatcher.INSTANCE);
+
+        screenAccessChecker.setLoginScreen(screenClass);
     }
 
-    protected VaadinSavedRequestAwareAuthenticationSuccessHandler getVaadinSavedRequestAwareAuthenticationSuccessHandler(
-            HttpSecurity http) {
-        VaadinSavedRequestAwareAuthenticationSuccessHandler vaadinSavedRequestAwareAuthenticationSuccessHandler = new VaadinSavedRequestAwareAuthenticationSuccessHandler();
-        vaadinSavedRequestAwareAuthenticationSuccessHandler
-                .setDefaultTargetUrl(applyUrlMapping(""));
+    protected VaadinSavedRequestAwareAuthenticationSuccessHandler createSuccessHandler(HttpSecurity http) {
+        VaadinSavedRequestAwareAuthenticationSuccessHandler authenticationSuccessHandler =
+                new VaadinSavedRequestAwareAuthenticationSuccessHandler();
+
+        authenticationSuccessHandler.setDefaultTargetUrl(applyUrlMapping(""));
+
         RequestCache requestCache = http.getSharedObject(RequestCache.class);
         if (requestCache != null) {
-            vaadinSavedRequestAwareAuthenticationSuccessHandler
-                    .setRequestCache(requestCache);
+            authenticationSuccessHandler.setRequestCache(requestCache);
         }
-        return vaadinSavedRequestAwareAuthenticationSuccessHandler;
+
+        return authenticationSuccessHandler;
     }
 
     protected AccessDeniedHandler createAccessDeniedHandler() {
-        final AccessDeniedHandler defaultHandler = new AccessDeniedHandlerImpl();
+        AccessDeniedHandler defaultHandler = new AccessDeniedHandlerImpl();
+        AccessDeniedHandler http401UnauthorizedHandler = new Http401UnauthorizedAccessDeniedHandler();
 
-        final AccessDeniedHandler http401UnauthorizedHandler = new Http401UnauthorizedAccessDeniedHandler();
-
-        final LinkedHashMap<Class<? extends AccessDeniedException>, AccessDeniedHandler> exceptionHandlers =
+        LinkedHashMap<Class<? extends AccessDeniedException>, AccessDeniedHandler> exceptionHandlers =
                 new LinkedHashMap<>();
         exceptionHandlers.put(CsrfException.class, http401UnauthorizedHandler);
 
-        final LinkedHashMap<RequestMatcher, AccessDeniedHandler> matcherHandlers = new LinkedHashMap<>();
+        LinkedHashMap<RequestMatcher, AccessDeniedHandler> matcherHandlers = new LinkedHashMap<>();
         matcherHandlers.put(requestUtil::isEndpointRequest,
-                new DelegatingAccessDeniedHandler(exceptionHandlers,
-                        new AccessDeniedHandlerImpl()));
+                new DelegatingAccessDeniedHandler(exceptionHandlers, new AccessDeniedHandlerImpl()));
 
-        return new RequestMatcherDelegatingAccessDeniedHandler(matcherHandlers,
-                defaultHandler);
+        return new RequestMatcherDelegatingAccessDeniedHandler(matcherHandlers, defaultHandler);
     }
 
-    protected static class Http401UnauthorizedAccessDeniedHandler
-            implements AccessDeniedHandler {
+    protected static class Http401UnauthorizedAccessDeniedHandler implements AccessDeniedHandler {
+
         @Override
         public void handle(HttpServletRequest request,
                            HttpServletResponse response,
-                           AccessDeniedException accessDeniedException)
-                throws IOException, ServletException {
+                           AccessDeniedException accessDeniedException) throws IOException, ServletException {
             response.setStatus(HttpStatus.UNAUTHORIZED.value());
         }
     }

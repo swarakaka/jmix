@@ -20,11 +20,14 @@ import io.jmix.core.AccessManager;
 import io.jmix.core.CoreConfiguration;
 import io.jmix.data.DataConfiguration;
 import io.jmix.security.SecurityConfiguration;
-import io.jmix.securityflowui.access.FlowuiScreenAccessChecker;
+import io.jmix.securityflowui.FlowuiSecurityConfiguration;
 import io.jmix.securityflowui.SecurityFlowuiConfiguration;
+import io.jmix.securityflowui.access.FlowuiScreenAccessChecker;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 
 @Configuration
 @Import({CoreConfiguration.class, DataConfiguration.class, SecurityConfiguration.class, SecurityFlowuiConfiguration.class})
@@ -33,5 +36,11 @@ public class SecurityFlowuiAutoConfiguration {
     @Bean("flowui_ScreenAccessChecker")
     public FlowuiScreenAccessChecker screenAccessChecker(AccessManager accessManager) {
         return new FlowuiScreenAccessChecker(false, accessManager);
+    }
+
+    @EnableWebSecurity
+    @ConditionalOnMissingBean(FlowuiSecurityConfiguration.class)
+    public static class DefaultFlowuiSecurityConfiguration extends FlowuiSecurityConfiguration {
+
     }
 }
