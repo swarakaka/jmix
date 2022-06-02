@@ -75,8 +75,6 @@ class MenuItemCommandsTest extends ScreenSpecification {
         then: 'All params are loaded, all properties are injected into UI Controller'
         screenCmd.getDescription() == 'Opening window: "test_MenuPropertiesInjectionTestScreen"'
 
-        screenCmd.params.isEmpty()
-
         screenCmd.controllerProperties.find { it.name == 'testIntProperty' && it.value == '42' }
         screenCmd.controllerProperties.find { it.name == 'testStringProperty' && it.value == 'Hello World!' }
         screenCmd.controllerProperties.find { it.name == 'entityToEdit' }
@@ -137,6 +135,23 @@ class MenuItemCommandsTest extends ScreenSpecification {
                 .testMethodInvoked
                 .get()
     }
+
+    @SuppressWarnings('GroovyAccessibility')
+    def 'Create and run Bean command with params'() {
+        def mainScreen = showTestMainScreen()
+
+        when: 'Bean command menu item is running'
+        def beanCommand = menuCommands.create(mainScreen, createBeanMenuItemWithParams())
+        beanCommand.run()
+
+        then: 'Corresponding bean method is invoked'
+        beanCommand.getDescription() == 'Calling bean method: test_WebBean#testMethodWithParams'
+
+        applicationContext.getBean(TestWebBean)
+                .paramsExist
+                .get()
+    }
+
 
     @SuppressWarnings('GroovyAccessibility')
     def 'Create and run Runnable command'() {
@@ -219,6 +234,22 @@ class MenuItemCommandsTest extends ScreenSpecification {
         def menuItem = new MenuItem('testBeanItem')
         menuItem.setBean(TestWebBean.NAME)
         menuItem.setBeanMethod('testMethod')
+        menuItem
+    }
+
+    MenuItem createBeanMenuItemWithParams() {
+        def menuItem = new MenuItem('testBeanItem')
+        menuItem.setBean(TestWebBean.NAME)
+        menuItem.setBeanMethod('testMethodWithParams')
+        def itemDescriptor = Dom4j.readDocument(
+                '''
+                <item bean="test_WebBean" beanMethod="testMethodWithParams">
+                    <properties>
+                        <property name="param1" value="value1"/>
+                    </properties>
+                </item>
+                ''').rootElement
+        menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 

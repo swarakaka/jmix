@@ -112,8 +112,12 @@ public class CubaMenuItemCommands extends MenuItemCommands {
 
     protected class CubaScreenCommand extends ScreenCommand {
 
+        protected Map<String, Object> params;
+
         protected CubaScreenCommand(FrameOwner origin, MenuItem item, String screen, Element descriptor, Map<String, Object> params, List<UiControllerProperty> controllerProperties) {
-            super(origin, item, screen, descriptor, params, controllerProperties);
+            super(origin, item, screen, descriptor, controllerProperties);
+
+            this.params = new HashMap<>(params);
         }
 
         @Nullable
@@ -135,6 +139,15 @@ public class CubaMenuItemCommands extends MenuItemCommands {
             } else {
                 return super.createScreen(windowInfo, screenId);
             }
+        }
+
+        @Override
+        protected Object getEntityToEdit(String screenId) {
+            if (params.containsKey("item")) {
+                return params.get("item");
+            }
+
+            return super.getEntityToEdit(screenId);
         }
 
         protected OpenType getOpenType(Element descriptor) {

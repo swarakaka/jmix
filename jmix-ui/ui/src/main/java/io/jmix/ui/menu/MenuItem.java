@@ -85,6 +85,7 @@ public class MenuItem {
         return id;
     }
 
+    @Nullable
     public Element getDescriptor() {
         return descriptor;
     }

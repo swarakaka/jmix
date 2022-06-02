@@ -16,6 +16,8 @@
 
 package io.jmix.ui.menu;
 
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import io.jmix.core.*;
 import io.jmix.core.common.util.ReflectionHelper;
 import io.jmix.ui.component.DialogWindow;
@@ -91,6 +93,7 @@ public class MenuItemCommands {
         List<UiControllerProperty> properties = loadProperties(item.getDescriptor());
 
         if (StringUtils.isNotEmpty(item.getScreen())) {
+            // params used in CUBA implementation of screen command
             return createScreenCommand(origin, item, params, properties);
         }
 
@@ -109,11 +112,48 @@ public class MenuItemCommands {
                                                   MenuItem item,
                                                   Map<String, Object> params,
                                                   List<UiControllerProperty> properties) {
-        return new ScreenCommand(origin, item, item.getScreen(), item.getDescriptor(), params, properties);
+        return new ScreenCommand(origin, item, item.getScreen(), item.getDescriptor(), properties);
     }
 
     protected Map<String, Object> loadParams(MenuItem item) {
-        return Collections.emptyMap();
+        Element menuItemDescriptor = item.getDescriptor();
+        if (menuItemDescriptor == null) {
+            return Collections.emptyMap();
+        }
+
+        Element propsEl = menuItemDescriptor.element("properties");
+        if (propsEl == null) {
+            return Collections.emptyMap();
+        }
+
+        List<Element> propElements = propsEl.elements("property");
+        if (propElements.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
+        for (Element propertyElement : propElements) {
+            String name = loadPropertyName(propertyElement);
+
+            checkValueOrEntityProvided(propertyElement);
+
+            String value = propertyElement.attributeValue("value");
+            if (!Strings.isNullOrEmpty(value)) {
+                builder.put(name, getTypedValue(value));
+            } else {
+                Object entity = loadPropertyEntity(propertyElement);
+                builder.put(name, entity);
+            }
+        }
+        return builder.build();
+    }
+
+    protected Object getTypedValue(String value) {
+        if (Boolean.TRUE.toString().equalsIgnoreCase(value)
+                || Boolean.FALSE.toString().equalsIgnoreCase(value)) {
+            return Boolean.valueOf(value);
+        }
+        return value;
     }
 
     protected List<UiControllerProperty> loadProperties(@Nullable Element menuItemDescriptor) {
@@ -137,19 +177,45 @@ public class MenuItemCommands {
     }
 
     protected UiControllerProperty loadUiControllerProperty(Element propertyElement) {
-        String propertyName = propertyElement.attributeValue("name");
-        if (StringUtils.isEmpty(propertyName)) {
-            throw new IllegalStateException("Screen property cannot have empty name");
-        }
+        String propertyName = loadPropertyName(propertyElement);
+
+        checkValueOrEntityProvided(propertyElement);
 
         String propertyValue = propertyElement.attributeValue("value");
-        if (StringUtils.isNotEmpty(propertyValue)) {
+        if (!Strings.isNullOrEmpty(propertyValue)) {
             return new UiControllerProperty(propertyName, propertyValue, UiControllerProperty.Type.VALUE);
         }
 
+        Object entity = loadPropertyEntity(propertyElement);
+
+        return new UiControllerProperty(propertyName, entity, UiControllerProperty.Type.REFERENCE);
+    }
+
+    protected void checkValueOrEntityProvided(Element propertyElement) {
+        String value = propertyElement.attributeValue("value");
+        String entityClass = propertyElement.attributeValue("entityClass");
+
+        if (Strings.isNullOrEmpty(value) && Strings.isNullOrEmpty(entityClass)) {
+            String propertyName = loadPropertyName(propertyElement);
+            throw new IllegalStateException(
+                    String.format("Screen property '%s' has neither value nor entity load info", propertyName));
+        }
+    }
+
+    protected String loadPropertyName(Element propertyElement) {
+        String propertyName = propertyElement.attributeValue("name");
+        if (StringUtils.isEmpty(propertyName)) {
+            throw new IllegalStateException("Property cannot have empty name");
+        }
+        return propertyName;
+    }
+
+    protected Object loadPropertyEntity(Element propertyElement) {
+        String propertyName = loadPropertyName(propertyElement);
+
         String entityClass = propertyElement.attributeValue("entityClass");
         if (StringUtils.isEmpty(entityClass)) {
-            throw new IllegalStateException(String.format("Screen property '%s' has neither value nor entity load info", propertyName));
+            throw new IllegalStateException(String.format("Screen property '%s' does not have entity class", propertyName));
         }
 
         String entityId = propertyElement.attributeValue("entityId");
@@ -180,7 +246,7 @@ public class MenuItemCommands {
                     entityClass, entityId));
         }
 
-        return new UiControllerProperty(propertyName, entity, UiControllerProperty.Type.REFERENCE);
+        return entity;
     }
 
     protected String loadEntityFetchPlan(Element propertyElement) {
@@ -226,16 +292,14 @@ public class MenuItemCommands {
 
         protected String screen;
         protected Element descriptor;
-        protected Map<String, Object> params;
         protected List<UiControllerProperty> controllerProperties;
 
         protected ScreenCommand(FrameOwner origin, MenuItem item,
-                                String screen, Element descriptor, Map<String, Object> params, List<UiControllerProperty> controllerProperties) {
+                                String screen, Element descriptor, List<UiControllerProperty> controllerProperties) {
             this.origin = origin;
             this.item = item;
             this.screen = screen;
             this.descriptor = descriptor;
-            this.params = new HashMap<>(params); // copy map values only for compatibility with legacy screens
             this.controllerProperties = controllerProperties;
         }
 
@@ -279,29 +343,25 @@ public class MenuItemCommands {
         protected Object getEntityToEdit(String screenId) {
             Object entityItem;
 
-            if (params.containsKey("item")) {
-                entityItem = params.get("item");
+            Object entityToEdit = controllerProperties.stream()
+                    .filter(prop -> "entityToEdit".equals(prop.getName()))
+                    .findFirst()
+                    .map(UiControllerProperty::getValue)
+                    .orElse(null);
+            if (entityToEdit instanceof Entity) {
+                entityItem = entityToEdit;
             } else {
-                Object entityToEdit = controllerProperties.stream()
-                        .filter(prop -> "entityToEdit".equals(prop.getName()))
-                        .findFirst()
-                        .map(UiControllerProperty::getValue)
-                        .orElse(null);
-                if (entityToEdit instanceof Entity) {
-                    entityItem = entityToEdit;
+                String[] strings = screenId.split("[.]");
+                String metaClassName;
+                if (strings.length == 2) {
+                    metaClassName = strings[0];
+                } else if (strings.length == 3) {
+                    metaClassName = strings[1];
                 } else {
-                    String[] strings = screenId.split("[.]");
-                    String metaClassName;
-                    if (strings.length == 2) {
-                        metaClassName = strings[0];
-                    } else if (strings.length == 3) {
-                        metaClassName = strings[1];
-                    } else {
-                        throw new UnsupportedOperationException("Incorrect screen parameters in menu item " + item.getId());
-                    }
-
-                    entityItem = metadata.create(metaClassName);
+                    throw new UnsupportedOperationException("Incorrect screen parameters in menu item " + item.getId());
                 }
+
+                entityItem = metadata.create(metaClassName);
             }
             return entityItem;
         }
@@ -310,7 +370,8 @@ public class MenuItemCommands {
         protected Screen createScreen(WindowInfo windowInfo, String screenId) {
             Screens screens = getScreenContext(origin).getScreens();
 
-            Screen screen = screens.create(screenId, getOpenMode(descriptor), new MapScreenOptions(params));
+            Screen screen = screens.create(screenId, getOpenMode(descriptor),
+                    new MapScreenOptions(Collections.emptyMap()));
             if (screen instanceof EditorScreen) {
                 //noinspection unchecked
                 ((EditorScreen) screen).setEntityToEdit(getEntityToEdit(screenId));
