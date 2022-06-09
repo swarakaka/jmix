@@ -19,6 +19,7 @@ package component.menu
 import component.menu.screen.MenuPropertiesInjectionTestScreen
 import io.jmix.core.CoreConfiguration
 import io.jmix.core.DataManager
+import io.jmix.core.Id
 import io.jmix.core.LoadContext
 import io.jmix.core.common.util.Dom4j
 import io.jmix.data.DataConfiguration
@@ -28,6 +29,7 @@ import io.jmix.ui.menu.MenuItem
 import io.jmix.ui.menu.MenuItemCommands
 import io.jmix.ui.testassist.spec.ScreenSpecification
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ContextConfiguration
 import test_support.UiTestConfiguration
 import test_support.bean.TestWebBean
@@ -41,6 +43,14 @@ class MenuItemCommandsTest extends ScreenSpecification {
     @Autowired
     MenuItemCommands menuCommands
 
+    @Autowired
+    DataManager dataManager
+
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
+    def orderId = UUID.fromString('60885987-1b61-4247-94c7-dff348347f93')
+
     @Override
     void setup() {
         exportScreensPackages(['component.menu.screen', 'test_support.entity.sales.screen'])
@@ -53,19 +63,19 @@ class MenuItemCommandsTest extends ScreenSpecification {
 
         TestRunnable.launched.set(false)
         TestRunnable.applicationContextIsSet.set(false)
+
+        def order = dataManager.create(Order)
+        order.setId(orderId)
+        dataManager.save(order)
+    }
+
+    void cleanup() {
+        jdbcTemplate.execute("delete from TEST_ORDER")
     }
 
     @SuppressWarnings(['GroovyAccessibility'])
     def 'Create and run Screen command'() {
         def mainScreen = showTestMainScreen()
-
-        def order = metadata.create(Order)
-        order.setId(UUID.fromString('60885987-1b61-4247-94c7-dff348347f93'))
-
-        def dataManager = Mock(DataManager)
-        dataManager.load(_ as LoadContext) >> order
-
-        menuCommands.dataManager = dataManager
 
         when: 'Screen menu item command with params and properties is running'
         def screenCmd = menuCommands.create(mainScreen, createScreenMenuItem()) as MenuItemCommands.ScreenCommand
@@ -86,6 +96,8 @@ class MenuItemCommandsTest extends ScreenSpecification {
                     throw new IllegalStateException('MenuPropertiesInjectionTestScreen should be in opened screens')
                 }) as MenuPropertiesInjectionTestScreen
 
+        def order = dataManager.load(Id.of(orderId, Order.class)).one()
+
         testScreen.testIntProperty == 42
         testScreen.testStringProperty == 'Hello World!'
         testScreen.entityToEdit == order
@@ -94,14 +106,6 @@ class MenuItemCommandsTest extends ScreenSpecification {
     @SuppressWarnings('GroovyAccessibility')
     def 'Create and run Editor Screen command'() {
         def mainScreen = showTestMainScreen()
-
-        def order = metadata.create(Order)
-        order.setId(UUID.fromString('60885987-1b61-4247-94c7-dff348347f93'))
-
-        def dataManager = Mock(DataManager)
-        dataManager.load(_ as LoadContext) >> order
-
-        menuCommands.dataManager = dataManager
 
         when: 'Editor screen command is running'
         menuCommands.create(mainScreen, createEditorMenuItem())
@@ -116,6 +120,8 @@ class MenuItemCommandsTest extends ScreenSpecification {
                 .orElseThrow({
                     throw new IllegalStateException('OrderEdit should be in active screens')
                 }) as OrderEdit
+
+        def order = dataManager.load(Id.of(orderId, Order.class)).one()
 
         userEditor.getEditedEntity() == order
     }
@@ -234,6 +240,12 @@ class MenuItemCommandsTest extends ScreenSpecification {
         def menuItem = new MenuItem('testBeanItem')
         menuItem.setBean(TestWebBean.NAME)
         menuItem.setBeanMethod('testMethod')
+        // stub
+        def itemDescriptor = Dom4j.readDocument(
+                '''
+                <item></item>
+                ''').rootElement
+        menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 
@@ -256,18 +268,36 @@ class MenuItemCommandsTest extends ScreenSpecification {
     MenuItem createRunnableMenuItem() {
         def menuItem = new MenuItem('testBeanItem')
         menuItem.setRunnableClass(TestRunnable.name)
+        // stub
+        def itemDescriptor = Dom4j.readDocument(
+                '''
+                <item></item>
+                ''').rootElement
+        menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 
     MenuItem createMenuItemRunnable() {
         def menuItem = new MenuItem('testBeanItem')
         menuItem.setRunnableClass(TestMenuItemRunnable.name)
+        // stub
+        def itemDescriptor = Dom4j.readDocument(
+                '''
+                <item></item>
+                ''').rootElement
+        menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 
     MenuItem createConsumerMenuItem() {
         def menuItem = new MenuItem('testConsumerItem')
         menuItem.setRunnableClass(TestMenuItemConsumer.name)
+        // stub
+        def itemDescriptor = Dom4j.readDocument(
+                '''
+                <item></item>
+                ''').rootElement
+        menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 }

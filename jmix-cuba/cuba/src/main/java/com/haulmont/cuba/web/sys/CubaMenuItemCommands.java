@@ -95,6 +95,15 @@ public class CubaMenuItemCommands extends MenuItemCommands {
         return builder.build();
     }
 
+    protected Map<String, Object> getMethodParameters(MenuItem item) {
+        Map<String, Object> params = loadParams(item);
+        if (params.isEmpty()) {
+            List<MenuItemProperty> properties = loadProperties(item);
+            params = convertToMethodParameters(properties);
+        }
+        return params;
+    }
+
     protected Entity loadEntityInstance(EntityLoadInfo info) {
         LoadContext ctx = new LoadContext(info.getMetaClass()).setId(info.getId());
         if (info.getFetchPlanName() != null) {
@@ -105,8 +114,25 @@ public class CubaMenuItemCommands extends MenuItemCommands {
         return (Entity) dataManager.load(ctx);
     }
 
+    @Nullable
     @Override
-    protected MenuItemCommand createScreenCommand(FrameOwner origin, MenuItem item, Map<String, Object> params, List<UiControllerProperty> properties) {
+    public MenuItemCommand create(FrameOwner origin, MenuItem item) {
+        if (StringUtils.isNotEmpty(item.getScreen())) {
+            List<MenuItemProperty> properties = loadProperties(item);
+            return createScreenCommand(origin, item, loadParams(item), convertToUiControllerProperties(properties));
+        }
+        if (StringUtils.isNotEmpty(item.getRunnableClass())) {
+            return createRunnableClassCommand(origin, item, item.getRunnableClass(), getMethodParameters(item));
+        }
+
+        if (StringUtils.isNotEmpty(item.getBean())) {
+            return createBeanCommand(origin, item, item.getBean(), item.getBeanMethod(), getMethodParameters(item));
+        }
+        return super.create(origin, item);
+    }
+
+    protected MenuItemCommand createScreenCommand(FrameOwner origin, MenuItem item, Map<String, Object> params,
+                                                  List<UiControllerProperty> properties) {
         return new CubaScreenCommand(origin, item, item.getScreen(), item.getDescriptor(), params, properties);
     }
 
@@ -114,7 +140,8 @@ public class CubaMenuItemCommands extends MenuItemCommands {
 
         protected Map<String, Object> params;
 
-        protected CubaScreenCommand(FrameOwner origin, MenuItem item, String screen, Element descriptor, Map<String, Object> params, List<UiControllerProperty> controllerProperties) {
+        protected CubaScreenCommand(FrameOwner origin, MenuItem item, String screen, Element descriptor,
+                                    Map<String, Object> params, List<UiControllerProperty> controllerProperties) {
             super(origin, item, screen, descriptor, controllerProperties);
 
             this.params = new HashMap<>(params);
