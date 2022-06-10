@@ -90,68 +90,37 @@ public class MenuItemCommands {
      */
     @Nullable
     public MenuItemCommand create(FrameOwner origin, MenuItem item) {
-        List<MenuItemProperty> properties = loadProperties(item);
-
         if (StringUtils.isNotEmpty(item.getScreen())) {
-            return createScreenCommand(origin, item, convertToUiControllerProperties(properties));
+            return createScreenCommand(origin, item);
         }
 
         if (StringUtils.isNotEmpty(item.getRunnableClass())) {
-            return createRunnableClassCommand(origin, item, item.getRunnableClass(),
-                    convertToMethodParameters(properties));
+            return createRunnableClassCommand(origin, item, item.getRunnableClass());
         }
 
         if (StringUtils.isNotEmpty(item.getBean())) {
-            return new BeanCommand(origin, item, item.getBean(), item.getBeanMethod(),
-                    convertToMethodParameters(properties));
+            return createBeanCommand(origin, item, item.getBean(), item.getBeanMethod());
         }
 
         return null;
     }
 
-    protected MenuItemCommand createScreenCommand(FrameOwner origin, MenuItem item,
-                                                  List<UiControllerProperty> properties) {
-        return new ScreenCommand(origin, item, item.getScreen(), item.getDescriptor(), properties);
+    protected MenuItemCommand createScreenCommand(FrameOwner origin, MenuItem item) {
+        return new ScreenCommand(origin, item, item.getScreen(), item.getDescriptor());
     }
 
-    protected MenuItemCommand createRunnableClassCommand(FrameOwner origin, MenuItem item, String runnableClass,
-                                                         Map<String, Object> methodParameters) {
-        return new RunnableClassCommand(origin, item, runnableClass, methodParameters);
+    protected MenuItemCommand createRunnableClassCommand(FrameOwner origin, MenuItem item, String runnableClass) {
+        return new RunnableClassCommand(origin, item, runnableClass);
     }
 
-    protected MenuItemCommand createBeanCommand(FrameOwner origin, MenuItem item, String bean, String beanMethod,
-                                                Map<String, Object> methodParameters) {
-        return new BeanCommand(origin, item, bean, beanMethod, methodParameters);
+    protected MenuItemCommand createBeanCommand(FrameOwner origin, MenuItem item, String bean, String beanMethod) {
+        return new BeanCommand(origin, item, bean, beanMethod);
     }
 
-    protected List<MenuItemProperty> loadProperties(MenuItem item) {
-        Element propsEl = item.getDescriptor().element("properties");
-        if (propsEl == null) {
-            return Collections.emptyList();
-        }
-
-        List<Element> elements = propsEl.elements("property");
-        List<MenuItemProperty> properties = new ArrayList<>(elements.size());
-
-        for (Element element : elements) {
-            properties.add(new MenuItemProperty(applicationContext, element));
-        }
-
-        return properties;
-    }
-
-    protected Map<String, Object> convertToMethodParameters(List<MenuItemProperty> properties) {
+    protected Map<String, Object> convertToMethodParameters(List<MenuItem.MenuItemProperty> properties) {
         return properties.stream()
                 .collect(Collectors.toMap(
-                        MenuItemProperty::getName, MenuItemProperty::getValueOrEntity));
-    }
-
-    protected List<UiControllerProperty> convertToUiControllerProperties(List<MenuItemProperty> properties) {
-        return properties.stream()
-                .map(property -> property.getValue() != null
-                        ? new UiControllerProperty(property.getName(), property.getValue(), VALUE)
-                        : new UiControllerProperty(property.getName(), property.getValueOrEntity(), REFERENCE))
-                .collect(Collectors.toList());
+                        MenuItem.MenuItemProperty::getName, MenuItem.MenuItemProperty::getValueOrEntity));
     }
 
     protected class ScreenCommand implements MenuItemCommand {
@@ -162,13 +131,12 @@ public class MenuItemCommands {
         protected Element descriptor;
         protected List<UiControllerProperty> controllerProperties;
 
-        protected ScreenCommand(FrameOwner origin, MenuItem item,
-                                String screen, Element descriptor, List<UiControllerProperty> controllerProperties) {
+        protected ScreenCommand(FrameOwner origin, MenuItem item, String screen, Element descriptor) {
             this.origin = origin;
             this.item = item;
             this.screen = screen;
             this.descriptor = descriptor;
-            this.controllerProperties = controllerProperties;
+            this.controllerProperties = convertToUiControllerProperties(item.getProperties());
         }
 
         @Override
@@ -268,6 +236,14 @@ public class MenuItemCommands {
             }
             return null;
         }
+
+        protected List<UiControllerProperty> convertToUiControllerProperties(List<MenuItem.MenuItemProperty> properties) {
+            return properties.stream()
+                    .map(property -> property.getValue() != null
+                            ? new UiControllerProperty(property.getName(), property.getValue(), VALUE)
+                            : new UiControllerProperty(property.getName(), property.getValueOrEntity(), REFERENCE))
+                    .collect(Collectors.toList());
+        }
     }
 
     protected class BeanCommand implements MenuItemCommand {
@@ -279,13 +255,12 @@ public class MenuItemCommands {
         protected String beanMethod;
         protected Map<String, Object> methodParameters;
 
-        protected BeanCommand(FrameOwner origin, MenuItem item,
-                              String bean, String beanMethod, Map<String, Object> methodParameters) {
+        protected BeanCommand(FrameOwner origin, MenuItem item, String bean, String beanMethod) {
             this.origin = origin;
             this.item = item;
             this.bean = bean;
             this.beanMethod = beanMethod;
-            this.methodParameters = methodParameters;
+            this.methodParameters = convertToMethodParameters(item.getProperties());
         }
 
         @Override
@@ -330,12 +305,11 @@ public class MenuItemCommands {
         protected String runnableClass;
         protected Map<String, Object> methodParameters;
 
-        protected RunnableClassCommand(FrameOwner origin, MenuItem item,
-                                       String runnableClass, Map<String, Object> methodParameters) {
+        protected RunnableClassCommand(FrameOwner origin, MenuItem item, String runnableClass) {
             this.origin = origin;
             this.item = item;
             this.runnableClass = runnableClass;
-            this.methodParameters = methodParameters;
+            this.methodParameters = convertToMethodParameters(item.getProperties());
         }
 
         @SuppressWarnings("unchecked")
@@ -391,155 +365,6 @@ public class MenuItemCommands {
         @Override
         public String getDescription() {
             return String.format("Running \"%s\"", runnableClass);
-        }
-    }
-
-    protected static class MenuItemProperty {
-
-        protected String name;
-        protected Object value;
-        protected Object entity;
-
-        protected ApplicationContext applicationContext;
-
-        public MenuItemProperty(ApplicationContext applicationContext, Element property) {
-            this.applicationContext = applicationContext;
-
-            name = loadPropertyName(property)
-                    .orElseThrow(() -> new IllegalStateException("Property cannot have empty name"));
-
-            checkValueOrEntityProvided(property);
-
-            value = loadValue(property);
-
-            if (value == null) {
-                entity = loadEntity(property);
-            }
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        @Nullable
-        public Object getValue() {
-            return value;
-        }
-
-        @Nullable
-        public Object getEntity() {
-            return entity;
-        }
-
-        public Object getValueOrEntity() {
-            return value != null ? value : entity;
-        }
-
-        protected Optional<String> loadPropertyName(Element property) {
-            String propertyName = property.attributeValue("name");
-            return Optional.ofNullable(Strings.emptyToNull(propertyName));
-        }
-
-        @Nullable
-        protected Object loadValue(Element property) {
-            String value = property.attributeValue("value");
-            return !Strings.isNullOrEmpty(value) ? getTypedValue(value) : null;
-        }
-
-        protected Object getTypedValue(String value) {
-            if (Boolean.TRUE.toString().equalsIgnoreCase(value)
-                    || Boolean.FALSE.toString().equalsIgnoreCase(value)) {
-                return Boolean.valueOf(value);
-            }
-            return value;
-        }
-
-        protected Object loadEntity(Element property) {
-            String entityClass = property.attributeValue("entityClass");
-            if (StringUtils.isEmpty(entityClass)) {
-                throw new IllegalStateException(String.format("Screen property '%s' does not have entity class", name));
-            }
-
-            String entityId = property.attributeValue("entityId");
-            if (StringUtils.isEmpty(entityId)) {
-                throw new IllegalStateException(String.format("Screen entity property '%s' doesn't have entity id", name));
-            }
-
-            MetaClass metaClass = applicationContext.getBean(Metadata.class)
-                    .getClass(ReflectionHelper.getClass(entityClass));
-
-            Object id = parseEntityId(metaClass, entityId);
-            if (id == null) {
-                throw new RuntimeException(String.format("Unable to parse id value `%s` for entity '%s'",
-                        entityId, entityClass));
-            }
-
-            LoadContext<Object> ctx = new LoadContext<>(metaClass)
-                    .setId(id);
-
-            String fetchPlan = loadEntityFetchPlan(property);
-            if (StringUtils.isNotEmpty(fetchPlan)) {
-                ctx.setFetchPlan(applicationContext.getBean(FetchPlanRepository.class)
-                        .getFetchPlan(metaClass, fetchPlan));
-            }
-
-            Object entity = applicationContext.getBean(DataManager.class)
-                    .load(ctx);
-
-            if (entity == null) {
-                throw new RuntimeException(String.format("Unable to load entity of class '%s' with id '%s'",
-                        entityClass, entityId));
-            }
-            return entity;
-        }
-
-        @Nullable
-        protected Object parseEntityId(MetaClass entityMetaClass, String entityId) {
-            MetaProperty pkProperty = applicationContext.getBean(MetadataTools.class)
-                    .getPrimaryKeyProperty(entityMetaClass);
-
-            if (pkProperty == null) {
-                return null;
-            }
-
-            Class<?> pkType = pkProperty.getJavaType();
-
-            if (String.class.equals(pkType)) {
-                return entityId;
-            } else if (UUID.class.equals(pkType)) {
-                return UUID.fromString(entityId);
-            }
-
-            Object id = null;
-
-            try {
-                if (Long.class.equals(pkType)) {
-                    id = Long.valueOf(entityId);
-                } else if (Integer.class.equals(pkType)) {
-                    id = Integer.valueOf(entityId);
-                }
-            } catch (Exception e) {
-                log.debug("Failed to parse entity id: '{}'", entityId, e);
-            }
-
-            return id;
-        }
-
-        protected String loadEntityFetchPlan(Element propertyElement) {
-            String entityFetchPlan = propertyElement.attributeValue("entityFetchPlan");
-            return StringUtils.isNotEmpty(entityFetchPlan)
-                    ? entityFetchPlan
-                    : propertyElement.attributeValue("entityView"); // for backward compatibility
-        }
-
-        protected void checkValueOrEntityProvided(Element propertyElement) {
-            String value = propertyElement.attributeValue("value");
-            String entityClass = propertyElement.attributeValue("entityClass");
-
-            if (Strings.isNullOrEmpty(value) && Strings.isNullOrEmpty(entityClass)) {
-                throw new IllegalStateException(
-                        String.format("Screen property '%s' has neither value nor entity load info", name));
-            }
         }
     }
 }

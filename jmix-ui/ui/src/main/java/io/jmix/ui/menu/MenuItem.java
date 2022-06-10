@@ -20,6 +20,7 @@ import org.dom4j.Element;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -45,6 +46,8 @@ public class MenuItem {
 
     private KeyCombination shortcut;
     private boolean isMenu = false;
+
+    protected List<MenuItemProperty> properties;
 
     public MenuItem(@Nullable MenuItem parent, String id) {
         this.parent = parent;
@@ -198,5 +201,60 @@ public class MenuItem {
 
     public void setBeanMethod(String beanMethod) {
         this.beanMethod = beanMethod;
+    }
+
+    public List<MenuItemProperty> getProperties() {
+        if (properties == null) {
+            return Collections.emptyList();
+        }
+        return properties;
+    }
+
+    public void setProperties(List<MenuItemProperty> properties) {
+        this.properties = properties;
+    }
+
+    protected static class MenuItemProperty {
+
+        protected String name;
+        protected Object value;
+        protected Object entity;
+
+        public MenuItemProperty(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        @Nullable
+        public Object getValue() {
+            return value;
+        }
+
+        public void setValue(@Nullable Object value) {
+            this.value = value;
+        }
+
+        @Nullable
+        public Object getEntity() {
+            return entity;
+        }
+
+        public void setEntity(@Nullable Object entity) {
+            this.entity = entity;
+        }
+
+        public Object getValueOrEntity() {
+            if (value != null) {
+                return value;
+            } else if (entity != null) {
+                return entity;
+            } else {
+                throw new IllegalStateException(MenuItem.MenuItemProperty.class.getName()
+                        + " must contain value or entity");
+            }
+        }
     }
 }

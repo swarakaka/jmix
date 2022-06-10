@@ -25,6 +25,7 @@ import io.jmix.core.common.util.Dom4j
 import io.jmix.data.DataConfiguration
 import io.jmix.eclipselink.EclipselinkConfiguration
 import io.jmix.ui.UiConfiguration
+import io.jmix.ui.menu.MenuConfig
 import io.jmix.ui.menu.MenuItem
 import io.jmix.ui.menu.MenuItemCommands
 import io.jmix.ui.testassist.spec.ScreenSpecification
@@ -48,6 +49,9 @@ class MenuItemCommandsTest extends ScreenSpecification {
 
     @Autowired
     JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    MenuConfig menuConfig;
 
     def orderId = UUID.fromString('60885987-1b61-4247-94c7-dff348347f93')
 
@@ -200,9 +204,6 @@ class MenuItemCommandsTest extends ScreenSpecification {
     }
 
     MenuItem createScreenMenuItem() {
-        def menuItem = new MenuItem('testScreenItem')
-        menuItem.setScreen('test_MenuPropertiesInjectionTestScreen')
-
         def itemDescriptor = Dom4j.readDocument('''
 <item screen="test_MenuPropertiesInjectionTestScreen"  openType="NEW_TAB" resizable="true">
     <properties>
@@ -213,15 +214,12 @@ class MenuItemCommandsTest extends ScreenSpecification {
     </properties>
 </item>
 ''').rootElement
-
+        def menuItem = menuConfig.createMenuItem(itemDescriptor, null);
         menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 
     MenuItem createEditorMenuItem() {
-        def menuItem = new MenuItem('testEditorItem')
-        menuItem.setScreen('test_Order.edit')
-
         def itemDescriptor = Dom4j.readDocument('''
 <item screen="test_Order.edit">
     <properties>
@@ -231,72 +229,61 @@ class MenuItemCommandsTest extends ScreenSpecification {
     </properties>
 </item>
 ''').rootElement
-
+        def menuItem = menuConfig.createMenuItem(itemDescriptor, null);
         menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 
     MenuItem createBeanMenuItem() {
-        def menuItem = new MenuItem('testBeanItem')
-        menuItem.setBean(TestWebBean.NAME)
-        menuItem.setBeanMethod('testMethod')
-        // stub
         def itemDescriptor = Dom4j.readDocument(
                 '''
-                <item></item>
+                <item id="testBeanItem" bean="test_WebBean" beanMethod="testMethod"></item>
                 ''').rootElement
+        def menuItem = menuConfig.createMenuItem(itemDescriptor, null)
         menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 
     MenuItem createBeanMenuItemWithParams() {
-        def menuItem = new MenuItem('testBeanItem')
-        menuItem.setBean(TestWebBean.NAME)
-        menuItem.setBeanMethod('testMethodWithParams')
         def itemDescriptor = Dom4j.readDocument(
                 '''
-                <item bean="test_WebBean" beanMethod="testMethodWithParams">
+                <item id="testBeanItem" bean="test_WebBean" beanMethod="testMethodWithParams">
                     <properties>
                         <property name="param1" value="value1"/>
                     </properties>
                 </item>
                 ''').rootElement
+        def menuItem = menuConfig.createMenuItem(itemDescriptor, null)
         menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 
     MenuItem createRunnableMenuItem() {
-        def menuItem = new MenuItem('testBeanItem')
-        menuItem.setRunnableClass(TestRunnable.name)
-        // stub
         def itemDescriptor = Dom4j.readDocument(
                 '''
-                <item></item>
+                <item id="testClassItem" class="component.menu.TestRunnable"></item>
                 ''').rootElement
+        def menuItem = menuConfig.createMenuItem(itemDescriptor, null)
         menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 
     MenuItem createMenuItemRunnable() {
-        def menuItem = new MenuItem('testBeanItem')
-        menuItem.setRunnableClass(TestMenuItemRunnable.name)
-        // stub
         def itemDescriptor = Dom4j.readDocument(
                 '''
-                <item></item>
+                <item id="testClassItem" class="component.menu.TestMenuItemRunnable"></item>
                 ''').rootElement
+        def menuItem = menuConfig.createMenuItem(itemDescriptor, null)
         menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
 
     MenuItem createConsumerMenuItem() {
-        def menuItem = new MenuItem('testConsumerItem')
-        menuItem.setRunnableClass(TestMenuItemConsumer.name)
-        // stub
         def itemDescriptor = Dom4j.readDocument(
                 '''
-                <item></item>
+                <item id="testConsumerItem" class="component.menu.TestMenuItemConsumer"></item>
                 ''').rootElement
+        def menuItem = menuConfig.createMenuItem(itemDescriptor, null);
         menuItem.setDescriptor(itemDescriptor)
         menuItem
     }
