@@ -16,7 +16,6 @@
 
 package com.haulmont.cuba.web.sys;
 
-import com.google.common.collect.ImmutableMap;
 import com.haulmont.cuba.core.global.EntityLoadInfo;
 import com.haulmont.cuba.gui.WindowManager;
 import com.haulmont.cuba.gui.WindowManager.OpenType;
@@ -32,6 +31,8 @@ import io.jmix.ui.screen.FrameOwner;
 import io.jmix.ui.screen.MapScreenOptions;
 import io.jmix.ui.screen.OpenMode;
 import io.jmix.ui.screen.Screen;
+import io.jmix.ui.sys.UiControllerProperty;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.dom4j.Element;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,7 +51,7 @@ public class CubaMenuItemCommands extends MenuItemCommands {
     protected Optional<Map<String, Object>> loadParams(MenuItem item) {
         Element descriptor = item.getDescriptor();
 
-        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
+        Map<String, Object> params = new HashMap<>();
 
         for (Element element : descriptor.elements("param")) {
             String value = element.attributeValue("value");
@@ -58,7 +59,7 @@ public class CubaMenuItemCommands extends MenuItemCommands {
             if (info == null) {
                 if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
                     Boolean booleanValue = Boolean.valueOf(value);
-                    builder.put(element.attributeValue("name"), booleanValue);
+                    params.put(element.attributeValue("name"), booleanValue);
                 } else {
                     if (value.startsWith("${") && value.endsWith("}")) {
                         String property = environment.getProperty(value.substring(2, value.length() - 1));
@@ -66,10 +67,10 @@ public class CubaMenuItemCommands extends MenuItemCommands {
                             value = property;
                         }
                     }
-                    builder.put(element.attributeValue("name"), value);
+                    params.put(element.attributeValue("name"), value);
                 }
             } else {
-                builder.put(element.attributeValue("name"), loadEntityInstance(info));
+                params.put(element.attributeValue("name"), info);
             }
         }
 
@@ -81,15 +82,21 @@ public class CubaMenuItemCommands extends MenuItemCommands {
             if (windowInfo.getDescriptor() != null) {
                 String caption = menuConfig.getItemCaption(item);
 
-                builder.put("caption", caption);
+                params.put("caption", caption);
             }
         }
-
-        ImmutableMap<String, Object> params = builder.build();
 
         return params.isEmpty()
                 ? Optional.empty()
                 : Optional.of(params);
+    }
+
+    protected void loadEntities(Map<String, Object> params) {
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            if (entry.getValue() instanceof EntityLoadInfo) {
+                entry.setValue(loadEntityInstance((EntityLoadInfo) entry.getValue()));
+            }
+        }
     }
 
     protected Entity loadEntityInstance(EntityLoadInfo info) {
@@ -129,32 +136,36 @@ public class CubaMenuItemCommands extends MenuItemCommands {
 
         @Nullable
         @Override
-        protected Screen createScreen(WindowInfo windowInfo, String screenId) {
+        protected Screen createScreen(WindowInfo windowInfo, String screenId, List<UiControllerProperty> properties) {
             Screens screens = getScreenContext(origin).getScreens();
             if (windowInfo.getDescriptor() != null) {
                 // legacy screens
 
                 Map<String, Object> paramsMap = parseLegacyScreenParams(windowInfo.getDescriptor());
+
+                loadEntities(params);
+
                 paramsMap.putAll(params);
 
                 if (screenId.endsWith(Window.CREATE_WINDOW_SUFFIX)
                         || screenId.endsWith(Window.EDITOR_WINDOW_SUFFIX)) {
-                    return ((WindowManager) screens).createEditor(windowInfo, (Entity) getEntityToEdit(screenId), getOpenType(descriptor), paramsMap);
+                    return ((WindowManager) screens).createEditor(windowInfo,
+                            (Entity) getEntityToEdit(screenId, properties), getOpenType(descriptor), paramsMap);
                 } else {
                     return screens.create(screenId, getOpenMode(descriptor), new MapScreenOptions(paramsMap));
                 }
             } else {
-                return super.createScreen(windowInfo, screenId);
+                return super.createScreen(windowInfo, screenId, properties);
             }
         }
 
         @Override
-        protected Object getEntityToEdit(String screenId) {
+        protected Object getEntityToEdit(String screenId, List<UiControllerProperty> properties) {
             if (params.containsKey("item")) {
                 return params.get("item");
             }
 
-            return super.getEntityToEdit(screenId);
+            return super.getEntityToEdit(screenId, properties);
         }
 
         protected OpenType getOpenType(Element descriptor) {
@@ -200,21 +211,49 @@ public class CubaMenuItemCommands extends MenuItemCommands {
 
     protected class CubaRunnableClassCommand extends RunnableClassCommand {
 
+        protected Map<String, Object> methodParameters;
+
         public CubaRunnableClassCommand(FrameOwner origin, MenuItem item, String runnableClass) {
             super(origin, item, runnableClass);
 
             loadParams(item)
                     .ifPresent(params -> methodParameters = params);
         }
+
+        @Override
+        protected Map<String, Object> getMethodParameters(MenuItem properties) {
+            if (MapUtils.isNotEmpty(methodParameters)) {
+
+                loadEntities(methodParameters);
+
+                return methodParameters;
+            }
+
+            return super.getMethodParameters(properties);
+        }
     }
 
     protected class CubaBeanCommand extends BeanCommand {
+
+        protected Map<String, Object> methodParameters;
 
         public CubaBeanCommand(FrameOwner origin, MenuItem item, String bean, String beanMethod) {
             super(origin, item, bean, beanMethod);
 
             loadParams(item)
                     .ifPresent(params -> methodParameters = params);
+        }
+
+        @Override
+        protected Map<String, Object> getMethodParameters(MenuItem properties) {
+            if (MapUtils.isNotEmpty(methodParameters)) {
+
+                loadEntities(methodParameters);
+
+                return methodParameters;
+            }
+
+            return super.getMethodParameters(properties);
         }
     }
 }

@@ -16,14 +16,10 @@
 
 package io.jmix.ui.menu;
 
-import com.google.common.base.Strings;
 import io.jmix.core.*;
-import io.jmix.core.common.util.ReflectionHelper;
 import io.jmix.ui.component.DialogWindow;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
-import io.jmix.core.metamodel.model.MetaClass;
-import io.jmix.core.metamodel.model.MetaProperty;
 import io.jmix.ui.ScreenBuilders;
 import io.jmix.ui.Screens;
 import io.jmix.ui.WindowConfig;
@@ -123,30 +119,58 @@ public class MenuItemCommands {
                         MenuItem.MenuItemProperty::getName, MenuItem.MenuItemProperty::getValueOrEntity));
     }
 
+    protected void loadEntities(List<MenuItem.MenuItemProperty> properties) {
+        for (MenuItem.MenuItemProperty property : properties) {
+            if (property.getValue() == null) {
+                property.setEntity(loadEntity(property));
+            }
+        }
+    }
+
+    protected Object loadEntity(MenuItem.MenuItemProperty property) {
+        LoadContext<Object> ctx = new LoadContext<>(property.getEntityClass())
+                .setId(property.getEntityId());
+
+        if (StringUtils.isNotEmpty(property.getFetchPlanName())) {
+            ctx.setFetchPlan(fetchPlanRepository.getFetchPlan(
+                    property.getEntityClass(), property.getFetchPlanName()));
+        }
+
+        Object entity = dataManager.load(ctx);
+
+        if (entity == null) {
+            throw new RuntimeException(String.format("Unable to load entity of class '%s' with id '%s'",
+                    property.getEntityClass(), property.getEntityId()));
+        }
+        return entity;
+    }
+
     protected class ScreenCommand implements MenuItemCommand {
         protected FrameOwner origin;
         protected MenuItem item;
 
         protected String screen;
         protected Element descriptor;
-        protected List<UiControllerProperty> controllerProperties;
 
         protected ScreenCommand(FrameOwner origin, MenuItem item, String screen, Element descriptor) {
             this.origin = origin;
             this.item = item;
             this.screen = screen;
             this.descriptor = descriptor;
-            this.controllerProperties = convertToUiControllerProperties(item.getProperties());
         }
 
         @Override
         public void run() {
             userActionsLog.trace("Menu item {} triggered", item.getId());
 
+            loadEntities(item.getProperties());
+
+            List<UiControllerProperty> controllerProperties = convertToUiControllerProperties(item.getProperties());
+
             Timer.Sample sample = Timer.start(meterRegistry);
 
             WindowInfo windowInfo = windowConfig.getWindowInfo(this.screen);
-            Screen screen = createScreen(windowInfo, this.screen);
+            Screen screen = createScreen(windowInfo, this.screen, controllerProperties);
 
             if (screen != null && screen.getWindow() instanceof DialogWindow) {
                 Boolean resizable = getResizable(descriptor);
@@ -157,7 +181,7 @@ public class MenuItemCommands {
 
             // inject declarative properties
 
-            List<UiControllerProperty> properties = this.controllerProperties;
+            List<UiControllerProperty> properties = controllerProperties;
             if (windowInfo.getDescriptor() != null) {
                 properties = properties.stream()
                         .filter(prop -> !"entityToEdit".equals(prop.getName()))
@@ -176,7 +200,7 @@ public class MenuItemCommands {
             sample.stop(UiMonitoring.createMenuTimer(meterRegistry, item.getId()));
         }
 
-        protected Object getEntityToEdit(String screenId) {
+        protected Object getEntityToEdit(String screenId, List<UiControllerProperty> controllerProperties) {
             Object entityItem;
 
             Object entityToEdit = controllerProperties.stream()
@@ -203,14 +227,15 @@ public class MenuItemCommands {
         }
 
         @Nullable
-        protected Screen createScreen(WindowInfo windowInfo, String screenId) {
+        protected Screen createScreen(WindowInfo windowInfo, String screenId,
+                                      List<UiControllerProperty> controllerProperties) {
             Screens screens = getScreenContext(origin).getScreens();
 
             Screen screen = screens.create(screenId, getOpenMode(descriptor),
                     new MapScreenOptions(Collections.emptyMap()));
             if (screen instanceof EditorScreen) {
                 //noinspection unchecked
-                ((EditorScreen<Object>) screen).setEntityToEdit(getEntityToEdit(screenId));
+                ((EditorScreen<Object>) screen).setEntityToEdit(getEntityToEdit(screenId, controllerProperties));
             }
             return screen;
         }
@@ -253,14 +278,12 @@ public class MenuItemCommands {
 
         protected String bean;
         protected String beanMethod;
-        protected Map<String, Object> methodParameters;
 
         protected BeanCommand(FrameOwner origin, MenuItem item, String bean, String beanMethod) {
             this.origin = origin;
             this.item = item;
             this.bean = bean;
             this.beanMethod = beanMethod;
-            this.methodParameters = convertToMethodParameters(item.getProperties());
         }
 
         @Override
@@ -268,6 +291,10 @@ public class MenuItemCommands {
             userActionsLog.trace("Menu item {} triggered", item.getId());
 
             Timer.Sample sample = Timer.start(meterRegistry);
+
+            loadEntities(item.getProperties());
+
+            Map<String, Object> methodParameters = getMethodParameters(item);
 
             Object beanInstance = applicationContext.getBean(bean);
             try {
@@ -291,6 +318,10 @@ public class MenuItemCommands {
             sample.stop(UiMonitoring.createMenuTimer(meterRegistry, item.getId()));
         }
 
+        protected Map<String, Object> getMethodParameters(MenuItem item) {
+            return convertToMethodParameters(item.getProperties());
+        }
+
         @Override
         public String getDescription() {
             return String.format("Calling bean method: %s#%s", bean, beanMethod);
@@ -303,13 +334,11 @@ public class MenuItemCommands {
         protected MenuItem item;
 
         protected String runnableClass;
-        protected Map<String, Object> methodParameters;
 
         protected RunnableClassCommand(FrameOwner origin, MenuItem item, String runnableClass) {
             this.origin = origin;
             this.item = item;
             this.runnableClass = runnableClass;
-            this.methodParameters = convertToMethodParameters(item.getProperties());
         }
 
         @SuppressWarnings("unchecked")
@@ -318,6 +347,10 @@ public class MenuItemCommands {
             userActionsLog.trace("Menu item {} triggered", item.getId());
 
             Timer.Sample sample = Timer.start(meterRegistry);
+
+            loadEntities(item.getProperties());
+
+            Map<String, Object> methodParameters = getMethodParameters(item);
 
             Class<?> clazz = classManager.findClass(runnableClass);
             if (clazz == null) {
@@ -360,6 +393,10 @@ public class MenuItemCommands {
             }
 
             sample.stop(UiMonitoring.createMenuTimer(meterRegistry, item.getId()));
+        }
+
+        protected Map<String, Object> getMethodParameters(MenuItem item) {
+            return convertToMethodParameters(item.getProperties());
         }
 
         @Override

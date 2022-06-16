@@ -82,16 +82,17 @@ class MenuItemCommandsTest extends ScreenSpecification {
         def mainScreen = showTestMainScreen()
 
         when: 'Screen menu item command with params and properties is running'
-        def screenCmd = menuCommands.create(mainScreen, createScreenMenuItem()) as MenuItemCommands.ScreenCommand
+        def menuItem = createScreenMenuItem()
+        def screenCmd = menuCommands.create(mainScreen, menuItem) as MenuItemCommands.ScreenCommand
 
         screenCmd.run()
 
         then: 'All params are loaded, all properties are injected into UI Controller'
         screenCmd.getDescription() == 'Opening window: "test_MenuPropertiesInjectionTestScreen"'
 
-        screenCmd.controllerProperties.find { it.name == 'testIntProperty' && it.value == '42' }
-        screenCmd.controllerProperties.find { it.name == 'testStringProperty' && it.value == 'Hello World!' }
-        screenCmd.controllerProperties.find { it.name == 'entityToEdit' }
+        menuItem.properties.find { it.name == 'testIntProperty' && it.value == '42' }
+        menuItem.properties.find { it.name == 'testStringProperty' && it.value == 'Hello World!' }
+        menuItem.properties.find { it.name == 'entityToEdit' }
 
         MenuPropertiesInjectionTestScreen testScreen = screens.getOpenedScreens().getActiveScreens().stream()
                 .filter({ it instanceof MenuPropertiesInjectionTestScreen })

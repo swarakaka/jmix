@@ -458,8 +458,9 @@ public class MenuConfig {
             if (value != null) {
                 itemProperty.setValue(value);
             } else {
-                Object entity = loadMenuItemPropertyEntity(property);
-                itemProperty.setEntity(entity);
+                itemProperty.setEntityClass(loadItemPropertyEntityClass(property));
+                itemProperty.setEntity(loadItemPropertyEntityId(property, itemProperty.getEntityClass()));
+                itemProperty.setFetchPlanName(loadEntityFetchPlan(property));
             }
 
             itemProperties.add(itemProperty);
@@ -482,42 +483,29 @@ public class MenuConfig {
         return value;
     }
 
-    protected Object loadMenuItemPropertyEntity(Element property) {
+    protected MetaClass loadItemPropertyEntityClass(Element property) {
         String entityClass = property.attributeValue("entityClass");
         if (StringUtils.isEmpty(entityClass)) {
             String name = property.attributeValue("name");
             throw new IllegalStateException(String.format("Screen property '%s' does not have entity class", name));
         }
 
+        return metadata.getClass(ReflectionHelper.getClass(entityClass));
+    }
+
+    protected Object loadItemPropertyEntityId(Element property, MetaClass metaClass) {
         String entityId = property.attributeValue("entityId");
         if (StringUtils.isEmpty(entityId)) {
             String name = property.attributeValue("name");
             throw new IllegalStateException(String.format("Screen entity property '%s' doesn't have entity id", name));
         }
 
-        MetaClass metaClass = metadata.getClass(ReflectionHelper.getClass(entityClass));
-
         Object id = parseEntityId(metaClass, entityId);
         if (id == null) {
             throw new RuntimeException(String.format("Unable to parse id value `%s` for entity '%s'",
-                    entityId, entityClass));
+                    entityId, metaClass.getJavaClass()));
         }
-
-        LoadContext<Object> ctx = new LoadContext<>(metaClass)
-                .setId(id);
-
-        String fetchPlan = loadEntityFetchPlan(property);
-        if (StringUtils.isNotEmpty(fetchPlan)) {
-            ctx.setFetchPlan(fetchPlanRepository.getFetchPlan(metaClass, fetchPlan));
-        }
-
-        Object entity = dataManager.load(ctx);
-
-        if (entity == null) {
-            throw new RuntimeException(String.format("Unable to load entity of class '%s' with id '%s'",
-                    entityClass, entityId));
-        }
-        return entity;
+        return id;
     }
 
     protected String loadEntityFetchPlan(Element propertyElement) {

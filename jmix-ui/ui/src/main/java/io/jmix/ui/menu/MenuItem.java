@@ -15,6 +15,7 @@
  */
 package io.jmix.ui.menu;
 
+import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.ui.component.KeyCombination;
 import org.dom4j.Element;
 
@@ -218,7 +219,11 @@ public class MenuItem {
 
         protected String name;
         protected Object value;
+
         protected Object entity;
+        protected MetaClass entityClass;
+        protected Object entityId;
+        protected String fetchPlanName;
 
         public MenuItemProperty(String name) {
             this.name = name;
@@ -255,6 +260,30 @@ public class MenuItem {
                 throw new IllegalStateException(MenuItem.MenuItemProperty.class.getName()
                         + " must contain value or entity");
             }
+        }
+
+        public MetaClass getEntityClass() {
+            return entityClass;
+        }
+
+        public void setEntityClass(MetaClass entityClass) {
+            this.entityClass = entityClass;
+        }
+
+        public Object getEntityId() {
+            return entityId;
+        }
+
+        public void setEntityId(Object entityId) {
+            this.entityId = entityId;
+        }
+
+        public String getFetchPlanName() {
+            return fetchPlanName;
+        }
+
+        public void setFetchPlanName(String fetchPlanName) {
+            this.fetchPlanName = fetchPlanName;
         }
     }
 }
