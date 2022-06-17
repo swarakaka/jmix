@@ -459,7 +459,7 @@ public class MenuConfig {
                 itemProperty.setValue(value);
             } else {
                 itemProperty.setEntityClass(loadItemPropertyEntityClass(property));
-                itemProperty.setEntity(loadItemPropertyEntityId(property, itemProperty.getEntityClass()));
+                itemProperty.setEntityId(loadItemPropertyEntityId(property, itemProperty.getEntityClass()));
                 itemProperty.setFetchPlanName(loadEntityFetchPlan(property));
             }
 

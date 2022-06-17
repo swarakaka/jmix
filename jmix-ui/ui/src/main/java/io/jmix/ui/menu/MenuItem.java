@@ -220,7 +220,6 @@ public class MenuItem {
         protected String name;
         protected Object value;
 
-        protected Object entity;
         protected MetaClass entityClass;
         protected Object entityId;
         protected String fetchPlanName;
@@ -240,26 +239,6 @@ public class MenuItem {
 
         public void setValue(@Nullable Object value) {
             this.value = value;
-        }
-
-        @Nullable
-        public Object getEntity() {
-            return entity;
-        }
-
-        public void setEntity(@Nullable Object entity) {
-            this.entity = entity;
-        }
-
-        public Object getValueOrEntity() {
-            if (value != null) {
-                return value;
-            } else if (entity != null) {
-                return entity;
-            } else {
-                throw new IllegalStateException(MenuItem.MenuItemProperty.class.getName()
-                        + " must contain value or entity");
-            }
         }
 
         public MetaClass getEntityClass() {

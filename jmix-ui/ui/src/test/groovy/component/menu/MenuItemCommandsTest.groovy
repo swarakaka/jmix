@@ -48,10 +48,10 @@ class MenuItemCommandsTest extends ScreenSpecification {
     DataManager dataManager
 
     @Autowired
-    JdbcTemplate jdbcTemplate;
+    JdbcTemplate jdbcTemplate
 
     @Autowired
-    MenuConfig menuConfig;
+    MenuConfig menuConfig
 
     def orderId = UUID.fromString('60885987-1b61-4247-94c7-dff348347f93')
 

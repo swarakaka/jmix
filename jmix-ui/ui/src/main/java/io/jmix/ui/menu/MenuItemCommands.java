@@ -16,6 +16,7 @@
 
 package io.jmix.ui.menu;
 
+import com.google.common.collect.ImmutableMap;
 import io.jmix.core.*;
 import io.jmix.ui.component.DialogWindow;
 import org.springframework.context.ApplicationContext;
@@ -113,18 +114,15 @@ public class MenuItemCommands {
         return new BeanCommand(origin, item, bean, beanMethod);
     }
 
-    protected Map<String, Object> convertToMethodParameters(List<MenuItem.MenuItemProperty> properties) {
-        return properties.stream()
-                .collect(Collectors.toMap(
-                        MenuItem.MenuItemProperty::getName, MenuItem.MenuItemProperty::getValueOrEntity));
-    }
+    protected Map<String, Object> buildMethodParametersMap(List<MenuItem.MenuItemProperty> properties) {
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
 
-    protected void loadEntities(List<MenuItem.MenuItemProperty> properties) {
         for (MenuItem.MenuItemProperty property : properties) {
-            if (property.getValue() == null) {
-                property.setEntity(loadEntity(property));
-            }
+            builder.put(property.getName(),
+                    property.getValue() != null ? property.getValue() : loadEntity(property));
         }
+
+        return builder.build();
     }
 
     protected Object loadEntity(MenuItem.MenuItemProperty property) {
@@ -162,8 +160,6 @@ public class MenuItemCommands {
         @Override
         public void run() {
             userActionsLog.trace("Menu item {} triggered", item.getId());
-
-            loadEntities(item.getProperties());
 
             List<UiControllerProperty> controllerProperties = convertToUiControllerProperties(item.getProperties());
 
@@ -266,7 +262,7 @@ public class MenuItemCommands {
             return properties.stream()
                     .map(property -> property.getValue() != null
                             ? new UiControllerProperty(property.getName(), property.getValue(), VALUE)
-                            : new UiControllerProperty(property.getName(), property.getValueOrEntity(), REFERENCE))
+                            : new UiControllerProperty(property.getName(), loadEntity(property), REFERENCE))
                     .collect(Collectors.toList());
         }
     }
@@ -291,8 +287,6 @@ public class MenuItemCommands {
             userActionsLog.trace("Menu item {} triggered", item.getId());
 
             Timer.Sample sample = Timer.start(meterRegistry);
-
-            loadEntities(item.getProperties());
 
             Map<String, Object> methodParameters = getMethodParameters(item);
 
@@ -319,7 +313,7 @@ public class MenuItemCommands {
         }
 
         protected Map<String, Object> getMethodParameters(MenuItem item) {
-            return convertToMethodParameters(item.getProperties());
+            return buildMethodParametersMap(item.getProperties());
         }
 
         @Override
@@ -347,8 +341,6 @@ public class MenuItemCommands {
             userActionsLog.trace("Menu item {} triggered", item.getId());
 
             Timer.Sample sample = Timer.start(meterRegistry);
-
-            loadEntities(item.getProperties());
 
             Map<String, Object> methodParameters = getMethodParameters(item);
 
@@ -396,7 +388,7 @@ public class MenuItemCommands {
         }
 
         protected Map<String, Object> getMethodParameters(MenuItem item) {
-            return convertToMethodParameters(item.getProperties());
+            return buildMethodParametersMap(item.getProperties());
         }
 
         @Override
