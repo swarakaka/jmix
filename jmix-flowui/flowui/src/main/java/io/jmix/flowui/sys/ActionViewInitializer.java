@@ -7,6 +7,7 @@ import io.jmix.flowui.view.View;
 import io.jmix.flowui.view.builder.DetailWindowBuilder;
 import io.jmix.flowui.view.builder.LookupWindowBuilder;
 import io.jmix.flowui.view.navigation.DetailViewNavigator;
+import io.jmix.flowui.view.navigation.ViewNavigator;
 
 import javax.annotation.Nullable;
 import java.util.function.Consumer;
@@ -62,6 +63,26 @@ public class ActionViewInitializer {
 
     public <S extends View<?>> void setAfterCloseHandler(@Nullable Consumer<AfterCloseEvent<S>> afterCloseHandler) {
         this.afterCloseHandler = (Consumer) afterCloseHandler;
+    }
+
+    public ViewNavigator initNavigator(ViewNavigator navigator) {
+        if (viewClass != null) {
+            navigator = navigator.withViewClass(viewClass);
+        }
+
+        if (viewId != null) {
+            navigator = navigator.withViewId(viewId);
+        }
+
+        if (routeParameters != null) {
+            navigator = navigator.withRouteParameters(routeParameters);
+        }
+
+        if (queryParameters != null) {
+            navigator = navigator.withQueryParameters(queryParameters);
+        }
+
+        return navigator;
     }
 
     public <E> DetailViewNavigator<E> initNavigator(DetailViewNavigator<E> navigator) {

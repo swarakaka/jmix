@@ -317,24 +317,24 @@ public class EditAction<E> extends SecuredListDataComponentAction<EditAction<E>,
             }
         }
 
-        viewInitializer.initNavigator(navigator);
+        navigator = viewInitializer.initNavigator(navigator);
 
         navigator.navigate();
     }
 
     @SuppressWarnings("unchecked")
     protected void openDialog(E editedEntity) {
-        DetailWindowBuilder<E, View<?>> detailBuilder = dialogWindowBuilders.detail(target);
+        DetailWindowBuilder<E, View<?>> builder = dialogWindowBuilders.detail(target);
 
-        detailBuilder = viewInitializer.initWindowBuilder(detailBuilder);
+        builder = viewInitializer.initWindowBuilder(builder);
 
-        detailBuilder.editEntity(editedEntity);
+        builder = builder.editEntity(editedEntity);
 
         if (transformation != null) {
-            detailBuilder.withTransformation(transformation);
+            builder = builder.withTransformation(transformation);
         }
 
-        DialogWindow<View<?>> dialogWindow = detailBuilder.build();
+        DialogWindow<View<?>> dialogWindow = builder.build();
         if (afterCommitHandler != null) {
             dialogWindow.addAfterCloseListener(event -> {
                 if (event.closedWith(StandardOutcome.COMMIT)

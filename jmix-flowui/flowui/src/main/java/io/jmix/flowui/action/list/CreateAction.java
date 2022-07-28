@@ -282,9 +282,8 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
     }
 
     protected void navigate() {
-        DetailViewNavigator<E> navigator = viewNavigators.detailView((target));
-
-        navigator = navigator.newEntity();
+        DetailViewNavigator<E> navigator = viewNavigators.detailView((target))
+                .newEntity();
 
         if (target instanceof Component) {
             View<?> parent = UiComponentUtils.findView((Component) target);
@@ -293,33 +292,33 @@ public class CreateAction<E> extends ListDataComponentAction<CreateAction<E>, E>
             }
         }
 
-        viewInitializer.initNavigator(navigator);
+        navigator = viewInitializer.initNavigator(navigator);
 
         navigator.navigate();
     }
 
     @SuppressWarnings("unchecked")
     protected void openDialog() {
-        DetailWindowBuilder<E, View<?>> detailBuilder = dialogWindowBuilders.detail(target);
+        DetailWindowBuilder<E, View<?>> builder = dialogWindowBuilders.detail(target);
 
-        detailBuilder = viewInitializer.initWindowBuilder(detailBuilder);
+        builder = viewInitializer.initWindowBuilder(builder);
 
         if (newEntitySupplier != null) {
             E entity = newEntitySupplier.get();
-            detailBuilder.newEntity(entity);
+            builder = builder.newEntity(entity);
         } else {
-            detailBuilder.newEntity();
+            builder = builder.newEntity();
         }
 
         if (initializer != null) {
-            detailBuilder = detailBuilder.withInitializer(initializer);
+            builder = builder.withInitializer(initializer);
         }
 
         if (transformation != null) {
-            detailBuilder.withTransformation(transformation);
+            builder = builder.withTransformation(transformation);
         }
 
-        DialogWindow<?> dialogWindow = detailBuilder.build();
+        DialogWindow<?> dialogWindow = builder.build();
         if (afterCommitHandler != null) {
             dialogWindow.addAfterCloseListener(event -> {
                 if (event.closedWith(StandardOutcome.COMMIT)

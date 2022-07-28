@@ -10,6 +10,7 @@ import io.jmix.flowui.DialogWindowBuilders;
 import io.jmix.flowui.FlowuiComponentProperties;
 import io.jmix.flowui.action.ActionType;
 import io.jmix.flowui.action.ViewOpeningAction;
+import io.jmix.flowui.action.list.CreateAction;
 import io.jmix.flowui.action.valuepicker.PickerAction;
 import io.jmix.flowui.component.EntityPickerComponent;
 import io.jmix.flowui.kit.component.FlowuiComponentUtils;
@@ -161,6 +162,22 @@ public class EntityLookupAction<E> extends PickerAction<EntityLookupAction<E>, E
         }
 
         builder.open();
+    }
+
+    /**
+     * @see #setViewId(String)
+     */
+    public EntityLookupAction<E> withViewId(@Nullable String viewId) {
+        setViewId(viewId);
+        return this;
+    }
+
+    /**
+     * @see #setViewClass(Class)
+     */
+    public EntityLookupAction<E> withViewClass(@Nullable Class<? extends View> viewClass) {
+        setViewClass(viewClass);
+        return this;
     }
 
     public EntityLookupAction<E> withSelectValidator(Predicate<LookupView.ValidationContext<E>> selectValidator) {
