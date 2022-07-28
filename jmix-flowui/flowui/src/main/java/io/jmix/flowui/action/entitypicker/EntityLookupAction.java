@@ -10,7 +10,6 @@ import io.jmix.flowui.DialogWindowBuilders;
 import io.jmix.flowui.FlowuiComponentProperties;
 import io.jmix.flowui.action.ActionType;
 import io.jmix.flowui.action.ViewOpeningAction;
-import io.jmix.flowui.action.list.CreateAction;
 import io.jmix.flowui.action.valuepicker.PickerAction;
 import io.jmix.flowui.component.EntityPickerComponent;
 import io.jmix.flowui.kit.component.FlowuiComponentUtils;
