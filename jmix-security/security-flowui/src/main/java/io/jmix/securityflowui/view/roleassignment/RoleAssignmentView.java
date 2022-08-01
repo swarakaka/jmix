@@ -33,7 +33,7 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Route(value = "roleassignment/:username"/*, layout = MainView.class*/)
+@Route(value = "roleassignment/:username", layout = DefaultMainViewParent.class)
 @UiController("roleAssignmentView")
 @UiDescriptor("role-assignment-view.xml")
 public class RoleAssignmentView extends StandardView implements HasDynamicTitle {

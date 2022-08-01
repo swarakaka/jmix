@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
   ~ Copyright 2022 Haulmont.
   ~
@@ -14,7 +15,6 @@
   ~ limitations under the License.
   -->
 
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <view xmlns="http://jmix.io/schema/flowui/view"
       title="msg://resourceRoleModelLookupView.title"
       focusComponent="roleModelsTable">

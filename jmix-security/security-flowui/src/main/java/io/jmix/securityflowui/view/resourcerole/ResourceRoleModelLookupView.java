@@ -28,7 +28,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Route(value = "resourcerolemodels"/*, layout = MainView.class*/)
+@Route(value = "resourcerolemodels", layout = DefaultMainViewParent.class)
 @UiController("sec_ResourceRoleModel.lookup")
 @UiDescriptor("resource-role-model-lookup-view.xml")
 @LookupComponent("roleModelsTable")
