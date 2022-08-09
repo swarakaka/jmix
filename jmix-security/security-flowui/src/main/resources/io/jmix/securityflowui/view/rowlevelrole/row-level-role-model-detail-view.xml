@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ~ Copyright 2022 Haulmont.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://rowLevelRoleModelDetailView.title"
+      focusComponent="form">
+    <data>
+        <instance id="roleModelDc"
+                  class="io.jmix.securityflowui.model.RowLevelRoleModel">
+            <collection id="rowLevelPoliciesDc" property="rowLevelPolicies"/>
+        </instance>
+        <!--<collection id="childRolesDc" class="io.jmix.securityflowui.model.RowLevelRoleModel">
+            <loader id="childRolesDl"/>
+        </collection>-->
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <actions>
+        <action id="commitAction" type="detail_commitClose"/>
+        <action id="closeAction" type="detail_close"/>
+    </actions>
+    <layout>
+        <formLayout id="form" dataContainer="roleModelDc">
+            <textField id="nameField" property="name"/>
+            <textField id="codeField" property="code"/>
+            <textArea id="descriptionField" property="description"/>
+
+            <textField id="sourceField"
+                       label="msg://io.jmix.securityflowui.model/ResourceRoleModel.source"
+                       readOnly="true"/>
+        </formLayout>
+
+        <hbox id="detailActions">
+            <button id="commitAndCloseBtn" action="commitAction"/>
+            <button id="closeBtn" action="closeAction"/>
+        </hbox>
+    </layout>
+</view>
