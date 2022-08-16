@@ -3,14 +3,11 @@ package io.jmix.flowui.view.navigation;
 import com.vaadin.flow.router.RouteParameters;
 import io.jmix.core.annotation.Internal;
 import io.jmix.core.entity.EntityValues;
+import io.jmix.flowui.sys.ViewSupport;
+import io.jmix.flowui.view.StandardDetailView;
 import io.jmix.flowui.view.View;
 import io.jmix.flowui.view.ViewRegistry;
-import io.jmix.flowui.view.StandardDetailView;
-import io.jmix.flowui.sys.ViewSupport;
 import org.springframework.stereotype.Component;
-
-import java.util.HashMap;
-import java.util.Objects;
 
 import static java.util.Objects.requireNonNull;
 
@@ -31,14 +28,16 @@ public class DetailViewNavigationProcessor extends AbstractNavigationProcessor<D
 
     @Override
     protected RouteParameters getRouteParameters(DetailViewNavigator<?> navigator) {
-        switch (navigator.getMode()) {
-            case CREATE:
-                return generateNewEntityRouteParameters(navigator);
-            case EDIT:
-                return generateEditEntityRouteParameters(navigator);
-            default:
-                throw new IllegalStateException("Unknown detail view mode: " + navigator.getMode());
-        }
+        return navigator.getRouteParameters().orElseGet(() -> {
+            switch (navigator.getMode()) {
+                case CREATE:
+                    return generateNewEntityRouteParameters(navigator);
+                case EDIT:
+                    return generateEditEntityRouteParameters(navigator);
+                default:
+                    throw new IllegalStateException("Unknown detail view mode: " + navigator.getMode());
+            }
+        });
     }
 
     protected RouteParameters generateNewEntityRouteParameters(DetailViewNavigator<?> navigator) {

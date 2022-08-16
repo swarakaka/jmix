@@ -1,7 +1,8 @@
 package io.jmix.flowui.sys;
 
-import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.RouteParameters;
+import io.jmix.flowui.action.ViewOpeningAction.QueryParametersProvider;
+import io.jmix.flowui.action.ViewOpeningAction.RouteParametersProvider;
 import io.jmix.flowui.view.DialogWindow.AfterCloseEvent;
 import io.jmix.flowui.view.View;
 import io.jmix.flowui.view.builder.DetailWindowBuilder;
@@ -16,8 +17,8 @@ public class ActionViewInitializer {
 
     protected String viewId;
     protected Class<? extends View> viewClass;
-    protected RouteParameters routeParameters;
-    protected QueryParameters queryParameters;
+    protected RouteParametersProvider routeParametersProvider;
+    protected QueryParametersProvider queryParametersProvider;
     protected Consumer<AfterCloseEvent<?>> afterCloseHandler;
 
     @Nullable
@@ -39,21 +40,21 @@ public class ActionViewInitializer {
     }
 
     @Nullable
-    public RouteParameters getRouteParameters() {
-        return routeParameters;
+    public RouteParametersProvider getRouteParametersProvider() {
+        return routeParametersProvider;
     }
 
-    public void setRouteParameters(@Nullable RouteParameters routeParameters) {
-        this.routeParameters = routeParameters;
+    public void setRouteParametersProvider(@Nullable RouteParametersProvider provider) {
+        this.routeParametersProvider = provider;
     }
 
     @Nullable
-    public QueryParameters getQueryParameters() {
-        return queryParameters;
+    public QueryParametersProvider getQueryParametersProvider() {
+        return queryParametersProvider;
     }
 
-    public void setQueryParameters(@Nullable QueryParameters queryParameters) {
-        this.queryParameters = queryParameters;
+    public void setQueryParametersProvider(@Nullable QueryParametersProvider provider) {
+        this.queryParametersProvider = provider;
     }
 
     @Nullable
@@ -74,12 +75,12 @@ public class ActionViewInitializer {
             navigator = navigator.withViewId(viewId);
         }
 
-        if (routeParameters != null) {
-            navigator = navigator.withRouteParameters(routeParameters);
+        if (routeParametersProvider != null) {
+            navigator = navigator.withRouteParameters(routeParametersProvider.getRouteParameters());
         }
 
-        if (queryParameters != null) {
-            navigator = navigator.withQueryParameters(queryParameters);
+        if (queryParametersProvider != null) {
+            navigator = navigator.withQueryParameters(queryParametersProvider.getQueryParameters());
         }
 
         return navigator;
@@ -94,12 +95,12 @@ public class ActionViewInitializer {
             navigator = navigator.withViewId(viewId);
         }
 
-        if (routeParameters != null) {
-            navigator = navigator.withRouteParameters(routeParameters);
+        if (routeParametersProvider != null) {
+            navigator = navigator.withRouteParameters(routeParametersProvider.getRouteParameters());
         }
 
-        if (queryParameters != null) {
-            navigator = navigator.withQueryParameters(queryParameters);
+        if (queryParametersProvider != null) {
+            navigator = navigator.withQueryParameters(queryParametersProvider.getQueryParameters());
         }
 
         return navigator;

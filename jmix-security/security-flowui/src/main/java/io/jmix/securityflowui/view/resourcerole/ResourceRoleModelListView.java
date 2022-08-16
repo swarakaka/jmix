@@ -17,6 +17,7 @@
 package io.jmix.securityflowui.view.resourcerole;
 
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouteParameters;
 import io.jmix.core.DataManager;
 import io.jmix.core.Messages;
 import io.jmix.flowui.Notifications;
@@ -76,6 +77,21 @@ public class ResourceRoleModelListView extends StandardListView<ResourceRoleMode
                 .sorted(Comparator.comparing(ResourceRoleModel::getName))
                 .collect(Collectors.toList());
         roleModelsDc.setItems(roleModels);
+    }
+
+    @Install(to = "roleModelsTable.create", subject = "routeParametersProvider")
+    public RouteParameters roleModelsTableCreateRouteParametersProvider() {
+        return new RouteParameters(ResourceRoleModelDetailView.ROUTE_PARAM_NAME, StandardDetailView.NEW_ENTITY_ID);
+    }
+
+    @Install(to = "roleModelsTable.edit", subject = "routeParametersProvider")
+    public RouteParameters roleModelsTableEditRouteParametersProvider() {
+        ResourceRoleModel selectedItem = roleModelsTable.getSingleSelectedItem();
+        if (selectedItem != null) {
+            return new RouteParameters(ResourceRoleModelDetailView.ROUTE_PARAM_NAME, selectedItem.getCode());
+        }
+
+        return null;
     }
 
     @Subscribe("roleModelsTable.remove")

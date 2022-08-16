@@ -14,17 +14,7 @@
  * limitations under the License.
  */
 
-package io.jmix.securityflowui.view.resourcerole;
+@NonNullApi
+package io.jmix.securityflowui.view.resourcepolicy;
 
-import com.vaadin.flow.router.Route;
-import io.jmix.flowui.view.*;
-import io.jmix.securityflowui.model.ResourceRoleModel;
-
-@Route(value = "resourcerolemodels/:id", layout = DefaultMainViewParent.class)
-@UiController("sec_ResourceRoleModel.detail")
-@UiDescriptor("resource-role-model-detail-view.xml")
-@EditedEntityContainer("roleModelDc")
-public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRoleModel> {
-
-    public static final String ROUTE_PARAM_NAME = "code";
-}
+import org.springframework.lang.NonNullApi;

@@ -17,8 +17,6 @@
 package io.jmix.flowui.action.list;
 
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.router.QueryParameters;
-import com.vaadin.flow.router.RouteParameters;
 import io.jmix.core.AccessManager;
 import io.jmix.core.Messages;
 import io.jmix.core.metamodel.model.MetaClass;
@@ -146,25 +144,25 @@ public class AddAction<E> extends ListDataComponentAction<AddAction<E>, E>
 
     @Nullable
     @Override
-    public RouteParameters getRouteParameters() {
+    public RouteParametersProvider getRouteParametersProvider() {
         // Lookup view opens in a dialog window only
         return null;
     }
 
     @Override
-    public void setRouteParameters(@Nullable RouteParameters routeParameters) {
+    public void setRouteParametersProvider(@Nullable RouteParametersProvider provider) {
         throw new UnsupportedOperationException("Lookup view opens in a dialog window only");
     }
 
     @Nullable
     @Override
-    public QueryParameters getQueryParameters() {
+    public QueryParametersProvider getQueryParametersProvider() {
         // Lookup view opens in a dialog window only
         return null;
     }
 
     @Override
-    public void setQueryParameters(@Nullable QueryParameters queryParameters) {
+    public void setQueryParametersProvider(@Nullable QueryParametersProvider provider) {
         throw new UnsupportedOperationException("Lookup view opens in a dialog window only");
     }
 
