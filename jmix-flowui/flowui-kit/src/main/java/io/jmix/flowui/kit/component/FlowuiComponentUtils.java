@@ -17,9 +17,12 @@
 package io.jmix.flowui.kit.component;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.ItemLabelGenerator;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.data.provider.HasListDataView;
 import com.vaadin.flow.dom.Element;
 import io.jmix.flowui.kit.action.Action;
 
@@ -79,7 +82,20 @@ public final class FlowuiComponentUtils {
     }
 
     public static <T> void setItemsMap(ComboBox<T> component, Map<T, String> items) {
+        setItemsMapInternal(component, items);
+        component.setItemLabelGenerator(createItemLabelGenerator(items));
+    }
+
+    public static <T> void setItemsMap(Select<T> component, Map<T, String> items) {
+        setItemsMapInternal(component, items);
+        component.setItemLabelGenerator(createItemLabelGenerator(items));
+    }
+
+    private static <T> void setItemsMapInternal(HasListDataView<T, ?> component, Map<T, String> items) {
         component.setItems(items.keySet());
-        component.setItemLabelGenerator(items::get);
+    }
+
+    private static <T> ItemLabelGenerator<T> createItemLabelGenerator(Map<T, String> items) {
+        return items::get;
     }
 }
