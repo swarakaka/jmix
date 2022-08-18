@@ -41,10 +41,8 @@ import io.jmix.security.model.*;
 import io.jmix.security.role.ResourceRoleRepository;
 import io.jmix.securitydata.entity.ResourcePolicyEntity;
 import io.jmix.securitydata.entity.ResourceRoleEntity;
-import io.jmix.securityflowui.model.BaseRoleModel;
-import io.jmix.securityflowui.model.ResourcePolicyModel;
-import io.jmix.securityflowui.model.ResourceRoleModel;
-import io.jmix.securityflowui.model.RoleModelConverter;
+import io.jmix.securityflowui.model.*;
+import io.jmix.securityflowui.model.RoleSource;
 import io.jmix.securityflowui.view.resourcepolicy.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,7 +73,7 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
     @ComponentId
     private DataGrid<ResourceRoleModel> childRolesTable;
     @ComponentId
-    protected HorizontalLayout resourcePoliciesButtonsPanel;
+    private HorizontalLayout resourcePoliciesButtonsPanel;
 
     @ComponentId
     private InstanceContainer<ResourceRoleModel> roleModelDc;
@@ -210,7 +208,7 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
         return childRoleModels;
     }
 
-    protected void initScopesField() {
+    private void initScopesField() {
         scopesField.setItems(Arrays.asList(SecurityScope.UI, SecurityScope.API));
     }
 

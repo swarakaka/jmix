@@ -65,12 +65,12 @@ public abstract class BaseRoleModel {
         this.id = id;
     }
 
-    public String getSource() {
-        return source;
+    public RoleSource getSource() {
+        return source == null ? null : RoleSource.fromId(source);
     }
 
-    public void setSource(String source) {
-        this.source = source;
+    public void setSource(RoleSource source) {
+        this.source = source == null ? null : source.getId();
     }
 
     public String getCode() {

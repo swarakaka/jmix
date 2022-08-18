@@ -61,7 +61,7 @@ public class RoleModelConverter {
         roleModel.setCode(role.getCode());
         roleModel.setDescription(role.getDescription());
         roleModel.setName(role.getName());
-        roleModel.setSource(role.getSource());
+        roleModel.setSource(RoleSource.fromId(role.getSource()));
         roleModel.setChildRoles(role.getChildRoles());
         roleModel.setCustomProperties(role.getCustomProperties());
     }

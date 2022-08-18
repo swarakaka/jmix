@@ -40,6 +40,8 @@
                 <action id="create" type="create"/>
                 <action id="edit" type="edit"/>
                 <action id="remove" type="remove"/>
+                <action id="exportJSON" text="msg://actions.exportJSON"/>
+                <action id="exportZIP" text="msg://actions.exportZIP"/>
             </actions>
             <columns>
                 <column property="name"/>

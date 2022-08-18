@@ -16,25 +16,35 @@
 
 package io.jmix.securityflowui.view.resourcerole;
 
+import com.vaadin.flow.component.contextmenu.MenuItem;
+import com.vaadin.flow.component.contextmenu.SubMenu;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.menubar.MenuBar;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteParameters;
 import io.jmix.core.DataManager;
 import io.jmix.core.Messages;
 import io.jmix.flowui.Notifications;
+import io.jmix.flowui.UiComponents;
 import io.jmix.flowui.component.grid.DataGrid;
+import io.jmix.flowui.kit.action.Action;
 import io.jmix.flowui.kit.action.ActionPerformedEvent;
 import io.jmix.flowui.model.CollectionContainer;
 import io.jmix.flowui.util.RemoveOperation;
 import io.jmix.flowui.view.*;
-import io.jmix.security.model.RoleSource;
 import io.jmix.security.role.ResourceRoleRepository;
 import io.jmix.securitydata.entity.RoleAssignmentEntity;
+import io.jmix.securityflowui.component.rolefilter.RoleFilter;
+import io.jmix.securityflowui.component.rolefilter.RoleFilterChangeEvent;
 import io.jmix.securityflowui.model.BaseRoleModel;
 import io.jmix.securityflowui.model.ResourceRoleModel;
 import io.jmix.securityflowui.model.RoleModelConverter;
+import io.jmix.securityflowui.model.RoleSource;
 import io.jmix.securityflowui.util.RemoveRoleConsumer;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import javax.annotation.Nullable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -49,6 +59,13 @@ public class ResourceRoleModelListView extends StandardListView<ResourceRoleMode
 
     @ComponentId
     private DataGrid<ResourceRoleModel> roleModelsTable;
+    @ComponentId
+    private HorizontalLayout buttonsPanel;
+
+    @ComponentId("roleModelsTable.exportJSON")
+    private Action exportJSON;
+    @ComponentId("roleModelsTable.exportZIP")
+    private Action exportZIP;
 
     @ComponentId
     private CollectionContainer<ResourceRoleModel> roleModelsDc;
@@ -65,14 +82,48 @@ public class ResourceRoleModelListView extends StandardListView<ResourceRoleMode
     private Notifications notifications;
     @Autowired
     private Messages messages;
+    @Autowired
+    private MessageBundle messageBundle;
+    @Autowired
+    private UiComponents uiComponents;
+
+    @Subscribe
+    public void onInit(InitEvent event) {
+        initFilter();
+//        initExportMenu();
+    }
+
+    private void initFilter() {
+        RoleFilter filter = uiComponents.create(RoleFilter.class);
+        filter.addRoleFilterChangeListener(this::onRoleFilterChange);
+
+        getContent().addComponentAsFirst(filter);
+    }
+
+    private void onRoleFilterChange(RoleFilterChangeEvent event) {
+        loadRoles(event);
+    }
+
+    private void initExportMenu() {
+        MenuBar exportMenuBar = new MenuBar();
+        buttonsPanel.add(exportMenuBar);
+
+        MenuItem rootItem = exportMenuBar.addItem(VaadinIcon.DOWNLOAD.create());
+        rootItem.add(messageBundle.getMessage("exportMenu.text"));
+
+        SubMenu exportItems = rootItem.getSubMenu();
+        exportItems.addItem(exportJSON.getText(), event -> exportJSON.actionPerform(null));
+        exportItems.addItem(exportZIP.getText(), event -> exportZIP.actionPerform(null));
+    }
 
     @Subscribe
     public void onBeforeShow(BeforeShowEvent event) {
-        loadRoles();
+        loadRoles(null);
     }
 
-    private void loadRoles() {
+    private void loadRoles(@Nullable RoleFilterChangeEvent event) {
         List<ResourceRoleModel> roleModels = roleRepository.getAllRoles().stream()
+                .filter(role -> event == null || event.matches(role))
                 .map(roleModelConverter::createResourceRoleModel)
                 .sorted(Comparator.comparing(ResourceRoleModel::getName))
                 .collect(Collectors.toList());
@@ -124,5 +175,15 @@ public class ResourceRoleModelListView extends StandardListView<ResourceRoleMode
         }
 
         return false;
+    }
+
+    @Subscribe("roleModelsTable.exportJSON")
+    public void onRoleModelsTableExportJSON(ActionPerformedEvent event) {
+//        export(JSON);
+    }
+
+    @Subscribe("roleModelsTable.exportZIP")
+    public void onRoleModelsTableExportZIP(ActionPerformedEvent event) {
+//        export(ZIP);
     }
 }
