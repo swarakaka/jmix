@@ -23,9 +23,9 @@
                   class="io.jmix.securityflowui.model.ResourceRoleModel">
             <collection id="resourcePoliciesDc" property="resourcePolicies"/>
         </instance>
-        <!--<collection id="childRolesDc" class="io.jmix.securityflowui.model.ResourceRoleModel">
+        <collection id="childRolesDc" class="io.jmix.securityflowui.model.ResourceRoleModel">
             <loader id="childRolesDl"/>
-        </collection>-->
+        </collection>
     </data>
     <facets>
         <dataLoadCoordinator auto="true"/>
@@ -37,15 +37,68 @@
     <layout>
         <formLayout id="form" dataContainer="roleModelDc">
             <textField id="nameField" property="name"/>
-            <textField id="codeField" property="code"/>
-            <textArea id="descriptionField" property="description"/>
 
-            <textField id="sourceField"
-                       label="msg://io.jmix.securityflowui.model/ResourceRoleModel.source"
-                       readOnly="true"/>
+            <textField id="sourceField" property="source" readOnly="true"/>
+
+            <textField id="codeField" property="code" readOnly="true"/>
 
             <checkboxGroup id="scopesField" property="scopes" required="true"/>
+
+            <textArea id="descriptionField" property="description" height="9.5em"/>
         </formLayout>
+
+        <h3 text="msg://io.jmix.securityflowui.model/ResourceRoleModel.resourcePolicies"/>
+        <hbox id="resourcePoliciesButtonsPanel" className="buttons-panel">
+            <button action="resourcePoliciesTable.edit"/>
+            <!--            <button action="resourcePoliciesTable.view"/>-->
+            <button action="resourcePoliciesTable.remove"/>
+        </hbox>
+        <dataGrid id="resourcePoliciesTable"
+                  dataContainer="resourcePoliciesDc"
+                  minHeight="20em"
+                  width="100%">
+            <actions>
+                <action id="createMenuPolicy" text="msg://actions.menuPolicy.text"/>
+                <action id="createViewPolicy" text="msg://actions.viewPolicy.text"/>
+                <action id="createEntityPolicy" text="msg://actions.entityPolicy.text"/>
+                <action id="createEntityAttributePolicy" text="msg://actions.entityAttributePolicy.text"/>
+                <action id="createGraphQLPolicy" text="msg://actions.graphQLPolicy.text"/>
+                <action id="createSpecificPolicy" text="msg://actions.specificPolicy.text"/>
+
+                <action id="edit" type="edit"/>
+                <!--                <action id="view" type="view"/>-->
+                <action id="remove" type="remove"/>
+            </actions>
+            <columns>
+                <column property="policyGroup"/>
+                <column property="type"/>
+                <column property="resource"/>
+                <column property="action"/>
+            </columns>
+        </dataGrid>
+        <h3 text="msg://io.jmix.securityflowui.model/ResourceRoleModel.childRoles"/>
+        <hbox id="childRolesButtonsPanel" className="buttons-panel">
+            <button action="childRolesTable.add"/>
+            <button action="childRolesTable.remove"/>
+        </hbox>
+        <dataGrid id="childRolesTable"
+                  dataContainer="childRolesDc"
+                  minHeight="20em"
+                  width="100%">
+            <actions>
+                <action id="add" type="add"/>
+                <action id="remove" type="remove">
+                    <properties>
+                        <property name="confirmation" value="false"/>
+                    </properties>
+                </action>
+            </actions>
+            <columns>
+                <column property="name"/>
+                <column property="code"/>
+                <column property="source"/>
+            </columns>
+        </dataGrid>
 
         <hbox id="detailActions">
             <button id="commitAndCloseBtn" action="commitAction"/>
