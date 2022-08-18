@@ -21,7 +21,7 @@ import io.jmix.flowui.view.*;
 import io.jmix.securityflowui.model.ResourceRoleModel;
 import io.jmix.securityflowui.model.RowLevelRoleModel;
 
-@Route(value = "rowlevelrolemodels/:id", layout = DefaultMainViewParent.class)
+@Route(value = "rowlevelrolemodels/:code", layout = DefaultMainViewParent.class)
 @UiController("sec_RowLevelRoleModel.detail")
 @UiDescriptor("row-level-role-model-detail-view.xml")
 @EditedEntityContainer("roleModelDc")

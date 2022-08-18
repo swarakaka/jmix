@@ -17,23 +17,26 @@
 package io.jmix.securityflowui.view.rowlevelrole;
 
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouteParameters;
 import io.jmix.core.DataManager;
 import io.jmix.core.Messages;
 import io.jmix.flowui.Notifications;
+import io.jmix.flowui.UiComponents;
 import io.jmix.flowui.component.grid.DataGrid;
 import io.jmix.flowui.kit.action.ActionPerformedEvent;
 import io.jmix.flowui.model.CollectionContainer;
 import io.jmix.flowui.util.RemoveOperation;
 import io.jmix.flowui.view.*;
-import io.jmix.security.model.RoleSource;
 import io.jmix.security.role.RowLevelRoleRepository;
 import io.jmix.securitydata.entity.RoleAssignmentEntity;
-import io.jmix.securityflowui.model.BaseRoleModel;
-import io.jmix.securityflowui.model.RoleModelConverter;
-import io.jmix.securityflowui.model.RowLevelRoleModel;
+import io.jmix.securityflowui.component.rolefilter.RoleFilter;
+import io.jmix.securityflowui.component.rolefilter.RoleFilterChangeEvent;
+import io.jmix.securityflowui.model.*;
 import io.jmix.securityflowui.util.RemoveRoleConsumer;
+import io.jmix.securityflowui.view.resourcerole.ResourceRoleModelDetailView;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import javax.annotation.Nullable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -53,29 +56,63 @@ public class RowLevelRoleModelListView extends StandardListView<RowLevelRoleMode
     private CollectionContainer<RowLevelRoleModel> roleModelsDc;
 
     @Autowired
-    private RowLevelRoleRepository roleRepository;
-    @Autowired
-    private RoleModelConverter roleModelConverter;
-    @Autowired
-    private RemoveOperation removeOperation;
+    private Messages messages;
     @Autowired
     private DataManager dataManager;
     @Autowired
+    private UiComponents uiComponents;
+    @Autowired
     private Notifications notifications;
     @Autowired
-    private Messages messages;
+    private RemoveOperation removeOperation;
+    @Autowired
+    private RoleModelConverter roleModelConverter;
+    @Autowired
+    private RowLevelRoleRepository roleRepository;
+
+    @Subscribe
+    public void onInit(InitEvent event) {
+        initFilter();
+    }
+
+    private void initFilter() {
+        RoleFilter filter = uiComponents.create(RoleFilter.class);
+        filter.addRoleFilterChangeListener(this::onRoleFilterChange);
+
+        getContent().addComponentAsFirst(filter);
+    }
+
+    private void onRoleFilterChange(RoleFilterChangeEvent event) {
+        loadRoles(event);
+    }
 
     @Subscribe
     public void onBeforeShow(BeforeShowEvent event) {
-        loadRoles();
+        loadRoles(null);
     }
 
-    private void loadRoles() {
+    private void loadRoles(@Nullable RoleFilterChangeEvent event) {
         List<RowLevelRoleModel> roleModels = roleRepository.getAllRoles().stream()
+                .filter(role -> event == null || event.matches(role))
                 .map(roleModelConverter::createRowLevelRoleModel)
                 .sorted(Comparator.comparing(RowLevelRoleModel::getName))
                 .collect(Collectors.toList());
         roleModelsDc.setItems(roleModels);
+    }
+
+    @Install(to = "roleModelsTable.create", subject = "routeParametersProvider")
+    public RouteParameters roleModelsTableCreateRouteParametersProvider() {
+        return new RouteParameters(ResourceRoleModelDetailView.ROUTE_PARAM_NAME, StandardDetailView.NEW_ENTITY_ID);
+    }
+
+    @Install(to = "roleModelsTable.edit", subject = "routeParametersProvider")
+    public RouteParameters roleModelsTableEditRouteParametersProvider() {
+        RowLevelRoleModel selectedItem = roleModelsTable.getSingleSelectedItem();
+        if (selectedItem != null) {
+            return new RouteParameters(ResourceRoleModelDetailView.ROUTE_PARAM_NAME, selectedItem.getCode());
+        }
+
+        return null;
     }
 
     @Subscribe("roleModelsTable.remove")

@@ -17,13 +17,17 @@
 package io.jmix.securityflowui.view.rowlevelrole;
 
 import com.vaadin.flow.router.Route;
+import io.jmix.flowui.UiComponents;
 import io.jmix.flowui.model.CollectionContainer;
 import io.jmix.flowui.view.*;
 import io.jmix.security.role.RowLevelRoleRepository;
+import io.jmix.securityflowui.component.rolefilter.RoleFilter;
+import io.jmix.securityflowui.component.rolefilter.RoleFilterChangeEvent;
 import io.jmix.securityflowui.model.RoleModelConverter;
 import io.jmix.securityflowui.model.RowLevelRoleModel;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import javax.annotation.Nullable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,18 +43,37 @@ public class RowLevelRoleModelLookupView extends StandardListView<RowLevelRoleMo
     private CollectionContainer<RowLevelRoleModel> roleModelsDc;
 
     @Autowired
-    private RowLevelRoleRepository roleRepository;
-
+    private UiComponents uiComponents;
     @Autowired
     private RoleModelConverter roleModelConverter;
+    @Autowired
+    private RowLevelRoleRepository roleRepository;
+
+    @Subscribe
+    public void onInit(InitEvent event) {
+        initFilter();
+    }
+
+    private void initFilter() {
+        RoleFilter filter = uiComponents.create(RoleFilter.class);
+        filter.setSourceFilterVisible(false);
+        filter.addRoleFilterChangeListener(this::onRoleFilterChange);
+
+        getContent().addComponentAsFirst(filter);
+    }
+
+    private void onRoleFilterChange(RoleFilterChangeEvent event) {
+        loadRoles(event);
+    }
 
     @Subscribe
     public void onBeforeShow(BeforeShowEvent event) {
-        loadRoles();
+        loadRoles(null);
     }
 
-    private void loadRoles() {
+    private void loadRoles(@Nullable RoleFilterChangeEvent event) {
         List<RowLevelRoleModel> roleModels = roleRepository.getAllRoles().stream()
+                .filter(role -> event == null || event.matches(role))
                 .map(roleModelConverter::createRowLevelRoleModel)
                 .sorted(Comparator.comparing(RowLevelRoleModel::getName))
                 .collect(Collectors.toList());

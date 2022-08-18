@@ -71,21 +71,21 @@ public class ResourceRoleModelListView extends StandardListView<ResourceRoleMode
     private CollectionContainer<ResourceRoleModel> roleModelsDc;
 
     @Autowired
-    private ResourceRoleRepository roleRepository;
-    @Autowired
-    private RoleModelConverter roleModelConverter;
-    @Autowired
-    private RemoveOperation removeOperation;
-    @Autowired
-    private DataManager dataManager;
-    @Autowired
-    private Notifications notifications;
-    @Autowired
     private Messages messages;
     @Autowired
     private MessageBundle messageBundle;
     @Autowired
+    private DataManager dataManager;
+    @Autowired
     private UiComponents uiComponents;
+    @Autowired
+    private Notifications notifications;
+    @Autowired
+    private RemoveOperation removeOperation;
+    @Autowired
+    private RoleModelConverter roleModelConverter;
+    @Autowired
+    private ResourceRoleRepository roleRepository;
 
     @Subscribe
     public void onInit(InitEvent event) {
