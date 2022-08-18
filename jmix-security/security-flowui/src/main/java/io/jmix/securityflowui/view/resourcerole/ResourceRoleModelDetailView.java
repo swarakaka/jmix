@@ -220,7 +220,8 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
                         if (resourceRole.getCustomProperties().isEmpty()) {
                             return true;
                         }
-                        return !resourceRole.getCustomProperties().get("databaseId").equals(editedEntity.getCustomProperties().get("databaseId"));
+                        return !resourceRole.getCustomProperties().get("databaseId")
+                                .equals(editedEntity.getCustomProperties().get("databaseId"));
                     })
                     .anyMatch(resourceRole -> resourceRole.getCode().equals(s));
             if (exist) {

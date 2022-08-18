@@ -102,14 +102,14 @@ public class RowLevelRoleModelListView extends StandardListView<RowLevelRoleMode
 
     @Install(to = "roleModelsTable.create", subject = "routeParametersProvider")
     public RouteParameters roleModelsTableCreateRouteParametersProvider() {
-        return new RouteParameters(ResourceRoleModelDetailView.ROUTE_PARAM_NAME, StandardDetailView.NEW_ENTITY_ID);
+        return new RouteParameters(RowLevelRoleModelDetailView.ROUTE_PARAM_NAME, StandardDetailView.NEW_ENTITY_ID);
     }
 
     @Install(to = "roleModelsTable.edit", subject = "routeParametersProvider")
     public RouteParameters roleModelsTableEditRouteParametersProvider() {
         RowLevelRoleModel selectedItem = roleModelsTable.getSingleSelectedItem();
         if (selectedItem != null) {
-            return new RouteParameters(ResourceRoleModelDetailView.ROUTE_PARAM_NAME, selectedItem.getCode());
+            return new RouteParameters(RowLevelRoleModelDetailView.ROUTE_PARAM_NAME, selectedItem.getCode());
         }
 
         return null;
