@@ -61,8 +61,16 @@
                       minHeight="20em"
                       width="100%">
                 <actions>
-                    <action id="create" type="create"/>
-                    <action id="edit" type="edit"/>
+                    <action id="create" type="create">
+                        <properties>
+                            <property name="openMode" value="DIALOG"/>
+                        </properties>
+                    </action>
+                    <action id="edit" type="edit">
+                        <properties>
+                            <property name="openMode" value="DIALOG"/>
+                        </properties>
+                    </action>
                     <!--                <action id="view" type="view"/>-->
                     <action id="remove" type="remove"/>
                 </actions>
