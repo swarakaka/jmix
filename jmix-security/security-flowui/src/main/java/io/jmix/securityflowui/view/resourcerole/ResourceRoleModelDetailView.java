@@ -24,6 +24,8 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.component.menubar.MenuBarVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.tabs.Tabs;
 import com.vaadin.flow.router.Route;
 import io.jmix.core.*;
 import io.jmix.flowui.DialogWindowBuilders;
@@ -62,6 +64,12 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
 
     public static final String ROUTE_PARAM_NAME = "code";
 
+    @ComponentId
+    private Tabs tabs;
+    @ComponentId
+    private VerticalLayout childRolesWrapper;
+    @ComponentId
+    private VerticalLayout resourcePoliciesWrapper;
     @ComponentId
     private TypedTextField<String> codeField;
     @ComponentId
@@ -103,7 +111,7 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
         // we need to set items (i.e. options) before the value is set,
         // otherwise it will be cleared
         initScopesField();
-        initCodeField();
+        initTabs();
     }
 
     @Subscribe
@@ -208,26 +216,48 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
         return childRoleModels;
     }
 
+    private void initTabs() {
+        tabs.addSelectedChangeListener(this::onSelectedTabChange);
+    }
+
+    private void onSelectedTabChange(Tabs.SelectedChangeEvent event) {
+        String tabId = event.getSelectedTab().getId()
+                .orElse("<no_id>");
+
+        switch (tabId) {
+            case "resourcePoliciesTab":
+                resourcePoliciesWrapper.setVisible(true);
+                childRolesWrapper.setVisible(false);
+                break;
+            case "childRolesTab":
+                resourcePoliciesWrapper.setVisible(false);
+                childRolesWrapper.setVisible(true);
+                break;
+            default:
+                resourcePoliciesWrapper.setVisible(false);
+                childRolesWrapper.setVisible(false);
+        }
+    }
+
     private void initScopesField() {
         scopesField.setItems(Arrays.asList(SecurityScope.UI, SecurityScope.API));
     }
 
-    private void initCodeField() {
-        codeField.addValidator(s -> {
-            ResourceRoleModel editedEntity = getEditedEntity();
-            boolean exist = roleRepository.getAllRoles().stream()
-                    .filter(resourceRole -> {
-                        if (resourceRole.getCustomProperties().isEmpty()) {
-                            return true;
-                        }
-                        return !resourceRole.getCustomProperties().get("databaseId")
-                                .equals(editedEntity.getCustomProperties().get("databaseId"));
-                    })
-                    .anyMatch(resourceRole -> resourceRole.getCode().equals(s));
-            if (exist) {
-                throw new ValidationException(messages.getMessage("io.jmix.securityflowui.view.resourcerole/uniqueCode"));
-            }
-        });
+    @Install(to = "codeField", subject = "validator")
+    private void codeFieldValidator(String value) {
+        ResourceRoleModel editedEntity = getEditedEntity();
+        boolean exist = roleRepository.getAllRoles().stream()
+                .filter(resourceRole -> {
+                    if (resourceRole.getCustomProperties().isEmpty()) {
+                        return true;
+                    }
+                    return !resourceRole.getCustomProperties().get("databaseId")
+                            .equals(editedEntity.getCustomProperties().get("databaseId"));
+                })
+                .anyMatch(resourceRole -> resourceRole.getCode().equals(value));
+        if (exist) {
+            throw new ValidationException(messages.getMessage("io.jmix.securityflowui.view.resourcerole/uniqueCode"));
+        }
     }
 
     @Subscribe("resourcePoliciesTable.createMenuPolicy")

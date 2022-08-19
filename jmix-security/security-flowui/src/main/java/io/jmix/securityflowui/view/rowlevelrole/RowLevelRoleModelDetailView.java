@@ -17,6 +17,8 @@
 package io.jmix.securityflowui.view.rowlevelrole;
 
 import com.google.common.base.Strings;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.tabs.Tabs;
 import com.vaadin.flow.router.Route;
 import io.jmix.core.*;
 import io.jmix.flowui.component.grid.DataGrid;
@@ -55,6 +57,12 @@ public class RowLevelRoleModelDetailView extends StandardDetailView<RowLevelRole
     public static final String ROUTE_PARAM_NAME = "code";
 
     @ComponentId
+    private Tabs tabs;
+    @ComponentId
+    private VerticalLayout childRolesWrapper;
+    @ComponentId
+    private VerticalLayout rowLevelPoliciesWrapper;
+    @ComponentId
     private TypedTextField<String> codeField;
     @ComponentId
     private DataGrid<RowLevelRoleModel> childRolesTable;
@@ -84,25 +92,26 @@ public class RowLevelRoleModelDetailView extends StandardDetailView<RowLevelRole
 
     @Subscribe
     public void onInit(InitEvent event) {
-        initCodeField();
+        tabs.addSelectedChangeListener(this::onSelectedTabChange);
     }
 
-    private void initCodeField() {
-        codeField.addValidator(s -> {
-            RowLevelRoleModel editedEntity = getEditedEntity();
-            boolean exist = roleRepository.getAllRoles().stream()
-                    .filter(rowLevelRole -> {
-                        if (rowLevelRole.getCustomProperties().isEmpty()) {
-                            return true;
-                        }
-                        return !rowLevelRole.getCustomProperties().get("databaseId")
-                                .equals(editedEntity.getCustomProperties().get("databaseId"));
-                    })
-                    .anyMatch(rowLevelRole -> rowLevelRole.getCode().equals(s));
-            if (exist) {
-                throw new ValidationException(messages.getMessage("io.jmix.securityflowui.view.rowlevelrole/uniqueCode"));
-            }
-        });
+    private void onSelectedTabChange(Tabs.SelectedChangeEvent event) {
+        String tabId = event.getSelectedTab().getId()
+                .orElse("<no_id>");
+
+        switch (tabId) {
+            case "rowLevelPoliciesTab":
+                rowLevelPoliciesWrapper.setVisible(true);
+                childRolesWrapper.setVisible(false);
+                break;
+            case "childRolesTab":
+                rowLevelPoliciesWrapper.setVisible(false);
+                childRolesWrapper.setVisible(true);
+                break;
+            default:
+                rowLevelPoliciesWrapper.setVisible(false);
+                childRolesWrapper.setVisible(false);
+        }
     }
 
     @Subscribe
@@ -192,6 +201,23 @@ public class RowLevelRoleModelDetailView extends StandardDetailView<RowLevelRole
     private void rowLevelPoliciesTableCreateInitializer(RowLevelPolicyModel rowLevelPolicyModel) {
         rowLevelPolicyModel.setType(RowLevelPolicyType.JPQL);
         rowLevelPolicyModel.setAction(RowLevelPolicyAction.READ);
+    }
+
+    @Install(to = "codeField", subject = "validator")
+    private void codeFieldValidator(String value) {
+        RowLevelRoleModel editedEntity = getEditedEntity();
+        boolean exist = roleRepository.getAllRoles().stream()
+                .filter(rowLevelRole -> {
+                    if (rowLevelRole.getCustomProperties().isEmpty()) {
+                        return true;
+                    }
+                    return !rowLevelRole.getCustomProperties().get("databaseId")
+                            .equals(editedEntity.getCustomProperties().get("databaseId"));
+                })
+                .anyMatch(rowLevelRole -> rowLevelRole.getCode().equals(value));
+        if (exist) {
+            throw new ValidationException(messages.getMessage("io.jmix.securityflowui.view.rowlevelrole/uniqueCode"));
+        }
     }
 
     @Subscribe(target = Target.DATA_CONTEXT)

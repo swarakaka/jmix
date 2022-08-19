@@ -42,55 +42,64 @@
             <textField id="sourceField" property="source" readOnly="true"/>
         </formLayout>
 
-        <h3 text="msg://io.jmix.securityflowui.model/RowLevelRoleModel.rowLevelPolicies"/>
-        <hbox id="rowLevelPoliciesButtonsPanel" className="buttons-panel">
-            <button action="rowLevelPoliciesTable.create"/>
-            <button action="rowLevelPoliciesTable.edit"/>
-            <!--            <button action="rowLevelPoliciesTable.view"/>-->
-            <button action="rowLevelPoliciesTable.remove"/>
-        </hbox>
-        <dataGrid id="rowLevelPoliciesTable"
-                  dataContainer="rowLevelPoliciesDc"
-                  minHeight="20em"
-                  width="100%">
-            <actions>
-                <action id="create" type="create"/>
-                <action id="edit" type="edit"/>
-                <!--                <action id="view" type="view"/>-->
-                <action id="remove" type="remove"/>
-            </actions>
-            <columns>
-                <column property="type"/>
-                <column property="action"/>
-                <column property="entityName"/>
-                <column property="whereClause"/>
-                <column property="joinClause"/>
-            </columns>
-        </dataGrid>
+        <tabs id="tabs" width="100%">
+            <tab id="rowLevelPoliciesTab"
+                 label="msg://io.jmix.securityflowui.model/RowLevelRoleModel.rowLevelPolicies"/>
+            <tab id="childRolesTab"
+                 label="msg://io.jmix.securityflowui.model/RowLevelRoleModel.childRoles"/>
+        </tabs>
 
-        <h3 text="msg://io.jmix.securityflowui.model/RowLevelRoleModel.childRoles"/>
-        <hbox id="childRolesButtonsPanel" className="buttons-panel">
-            <button action="childRolesTable.add"/>
-            <button action="childRolesTable.remove"/>
-        </hbox>
-        <dataGrid id="childRolesTable"
-                  dataContainer="childRolesDc"
-                  minHeight="20em"
-                  width="100%">
-            <actions>
-                <action id="add" type="add"/>
-                <action id="remove" type="remove">
-                    <properties>
-                        <property name="confirmation" value="false"/>
-                    </properties>
-                </action>
-            </actions>
-            <columns>
-                <column property="name"/>
-                <column property="code"/>
-                <column property="source"/>
-            </columns>
-        </dataGrid>
+        <vbox id="rowLevelPoliciesWrapper" width="100%" padding="false">
+            <hbox id="rowLevelPoliciesButtonsPanel" className="buttons-panel">
+                <button action="rowLevelPoliciesTable.create"/>
+                <button action="rowLevelPoliciesTable.edit"/>
+                <!--            <button action="rowLevelPoliciesTable.view"/>-->
+                <button action="rowLevelPoliciesTable.remove"/>
+            </hbox>
+            <dataGrid id="rowLevelPoliciesTable"
+                      dataContainer="rowLevelPoliciesDc"
+                      minHeight="20em"
+                      width="100%">
+                <actions>
+                    <action id="create" type="create"/>
+                    <action id="edit" type="edit"/>
+                    <!--                <action id="view" type="view"/>-->
+                    <action id="remove" type="remove"/>
+                </actions>
+                <columns>
+                    <column property="type"/>
+                    <column property="action"/>
+                    <column property="entityName"/>
+                    <column property="whereClause"/>
+                    <column property="joinClause"/>
+                </columns>
+            </dataGrid>
+        </vbox>
+
+        <vbox id="childRolesWrapper" width="100%" padding="false" visible="false">
+            <hbox id="childRolesButtonsPanel" className="buttons-panel">
+                <button action="childRolesTable.add"/>
+                <button action="childRolesTable.remove"/>
+            </hbox>
+            <dataGrid id="childRolesTable"
+                      dataContainer="childRolesDc"
+                      minHeight="20em"
+                      width="100%">
+                <actions>
+                    <action id="add" type="add"/>
+                    <action id="remove" type="remove">
+                        <properties>
+                            <property name="confirmation" value="false"/>
+                        </properties>
+                    </action>
+                </actions>
+                <columns>
+                    <column property="name"/>
+                    <column property="code"/>
+                    <column property="source"/>
+                </columns>
+            </dataGrid>
+        </vbox>
 
         <hbox id="detailActions">
             <button id="commitAndCloseBtn" action="commitAction"/>
