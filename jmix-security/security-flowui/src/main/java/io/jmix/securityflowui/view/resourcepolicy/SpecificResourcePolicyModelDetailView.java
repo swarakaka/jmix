@@ -1,5 +1,7 @@
 package io.jmix.securityflowui.view.resourcepolicy;
 
+import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.combobox.GeneratedVaadinComboBox.CustomValueSetEvent;
 import io.jmix.core.security.SpecificPolicyInfoRegistry;
 import io.jmix.flowui.component.combobox.JmixComboBox;
 import io.jmix.flowui.view.*;
@@ -29,5 +31,10 @@ public class SpecificResourcePolicyModelDetailView extends StandardDetailView<Re
                 .collect(Collectors.toList());
 
         resourceField.setItems(specificPolicyNames);
+    }
+
+    @Subscribe("resourceField")
+    private void onCustomValueSet(CustomValueSetEvent<ComboBox<String>> event) {
+        resourceField.setValue(event.getDetail());
     }
 }
