@@ -14,9 +14,9 @@ import io.jmix.flowui.menu.MenuItem;
 import io.jmix.flowui.view.*;
 import io.jmix.security.model.ResourcePolicy;
 import io.jmix.security.model.ResourcePolicyEffect;
-import io.jmix.security.model.ResourcePolicyType;
 import io.jmix.securityflowui.model.DefaultResourcePolicyGroupResolver;
 import io.jmix.securityflowui.model.ResourcePolicyModel;
+import io.jmix.securityflowui.model.ResourcePolicyType;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
@@ -56,7 +56,8 @@ public class ViewResourcePolicyModelCreateView extends MultipleResourcePolicyMod
 
     private void onViewFieldValueChange(ComponentValueChangeEvent<ComboBox<String>, String> event) {
         String viewId = event.getValue();
-        String policyGroup = resourcePolicyGroupResolver.resolvePolicyGroup(ResourcePolicyType.SCREEN, viewId);
+        String policyGroup = resourcePolicyGroupResolver
+                .resolvePolicyGroup(ResourcePolicyType.VIEW.getId(), viewId);
         if (policyGroup != null) {
             policyGroupField.setValue(policyGroup);
         } else {
@@ -99,8 +100,7 @@ public class ViewResourcePolicyModelCreateView extends MultipleResourcePolicyMod
         String viewId = viewField.getValue();
 
         ResourcePolicyModel viewPolicy = metadata.create(ResourcePolicyModel.class);
-        // TODO: 16.08.2022 convert
-        viewPolicy.setType(ResourcePolicyType.SCREEN);
+        viewPolicy.setType(ResourcePolicyType.VIEW);
         viewPolicy.setResource(viewId);
         viewPolicy.setPolicyGroup(policyGroupField.getValue());
         viewPolicy.setAction(ResourcePolicy.DEFAULT_ACTION);

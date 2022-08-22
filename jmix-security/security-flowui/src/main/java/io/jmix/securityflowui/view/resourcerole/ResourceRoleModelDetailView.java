@@ -26,6 +26,7 @@ import com.vaadin.flow.component.menubar.MenuBarVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.tabs.Tabs;
+import com.vaadin.flow.function.ValueProvider;
 import com.vaadin.flow.router.Route;
 import io.jmix.core.*;
 import io.jmix.flowui.DialogWindowBuilders;
@@ -44,6 +45,7 @@ import io.jmix.security.role.ResourceRoleRepository;
 import io.jmix.securitydata.entity.ResourcePolicyEntity;
 import io.jmix.securitydata.entity.ResourceRoleEntity;
 import io.jmix.securityflowui.model.*;
+import io.jmix.securityflowui.model.ResourcePolicyType;
 import io.jmix.securityflowui.model.RoleSource;
 import io.jmix.securityflowui.view.resourcepolicy.*;
 import org.slf4j.Logger;
@@ -93,6 +95,10 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
     @Autowired
     private Messages messages;
     @Autowired
+    private MessageTools messageTools;
+    @Autowired
+    private MessageBundle messageBundle;
+    @Autowired
     private Metadata metadata;
     @Autowired
     private DataManager dataManager;
@@ -111,6 +117,7 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
         // we need to set items (i.e. options) before the value is set,
         // otherwise it will be cleared
         initScopesField();
+        initResourcePoliciesTable();
         initTabs();
     }
 
@@ -239,6 +246,14 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
         }
     }
 
+    private void initResourcePoliciesTable() {
+        resourcePoliciesTable.addColumn((ValueProvider<ResourcePolicyModel, String>) resourcePolicyModel ->
+                messageBundle.getMessage("roleAction." + resourcePolicyModel.getAction()))
+                .setKey("action")
+                .setHeader(messageTools.getPropertyCaption(resourcePoliciesDc.getEntityMetaClass(), "action"))
+                .setSortable(true);
+    }
+
     private void initScopesField() {
         scopesField.setItems(Arrays.asList(SecurityScope.UI, SecurityScope.API));
     }
@@ -361,18 +376,17 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
     private Class<? extends StandardDetailView<ResourcePolicyModel>> getResourcePolicyDetailViewClass(
             ResourcePolicyModel resourcePolicyModel) {
         switch (resourcePolicyModel.getType()) {
-            case ResourcePolicyType.MENU:
+            case MENU:
                 return MenuResourcePolicyModelDetailView.class;
-            // TODO: 16.08.2022 convert
-            case ResourcePolicyType.SCREEN:
+            case VIEW:
                 return ViewResourcePolicyModelDetailView.class;
-            case ResourcePolicyType.ENTITY:
+            case ENTITY:
                 return EntityResourcePolicyModelDetailView.class;
-            case ResourcePolicyType.ENTITY_ATTRIBUTE:
+            case ENTITY_ATTRIBUTE:
                 return EntityAttributeResourcePolicyModelDetailView.class;
-            case ResourcePolicyType.GRAPHQL:
+            case GRAPHQL:
                 return GraphQLResourcePolicyModelDetailView.class;
-            case ResourcePolicyType.SPECIFIC:
+            case SPECIFIC:
                 return SpecificResourcePolicyModelDetailView.class;
             default:
                 return ResourcePolicyModelDetailView.class;
@@ -465,7 +479,7 @@ public class ResourceRoleModelDetailView extends StandardDetailView<ResourceRole
                 policyEntity.setRole(roleEntity);
             }
             policyEntity = getDataContext().merge(policyEntity);
-            policyEntity.setType(policyModel.getType());
+            policyEntity.setType(policyModel.getTypeId());
             policyEntity.setResource(policyModel.getResource());
             policyEntity.setAction(policyModel.getAction());
             policyEntity.setEffect(policyModel.getEffect());

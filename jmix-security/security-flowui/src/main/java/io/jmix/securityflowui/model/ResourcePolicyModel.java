@@ -36,7 +36,7 @@ public class ResourcePolicyModel {
     protected UUID id;
 
     @JmixProperty(mandatory = true)
-    private String type;
+    private ResourcePolicyType type;
 
     @JmixProperty(mandatory = true)
     private String resource;
@@ -64,11 +64,15 @@ public class ResourcePolicyModel {
         this.id = id;
     }
 
-    public String getType() {
+    public ResourcePolicyType getType() {
         return type;
     }
 
-    public void setType(String type) {
+    public String getTypeId() {
+        return type != null ? type.getId() : null;
+    }
+
+    public void setType(ResourcePolicyType type) {
         this.type = type;
     }
 

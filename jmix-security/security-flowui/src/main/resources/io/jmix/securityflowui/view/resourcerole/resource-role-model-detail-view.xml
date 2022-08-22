@@ -76,7 +76,6 @@
                     <column property="policyGroup"/>
                     <column property="type"/>
                     <column property="resource"/>
-                    <column property="action"/>
                 </columns>
             </dataGrid>
         </vbox>

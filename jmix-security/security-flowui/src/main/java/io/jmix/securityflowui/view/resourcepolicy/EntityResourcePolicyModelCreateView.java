@@ -16,14 +16,13 @@ import io.jmix.flowui.data.items.EnumDataProvider;
 import io.jmix.flowui.kit.component.FlowuiComponentUtils;
 import io.jmix.flowui.view.*;
 import io.jmix.security.model.ResourcePolicyEffect;
-import io.jmix.security.model.ResourcePolicyType;
 import io.jmix.securityflowui.model.DefaultResourcePolicyGroupResolver;
 import io.jmix.securityflowui.model.ResourcePolicyModel;
+import io.jmix.securityflowui.model.ResourcePolicyType;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -67,7 +66,8 @@ public class EntityResourcePolicyModelCreateView extends MultipleResourcePolicyM
 
     private void onEntityFieldValueChange(ComponentValueChangeEvent<ComboBox<String>, String> event) {
         String entityName = event.getValue();
-        String policyGroup = resourcePolicyGroupResolver.resolvePolicyGroup(ResourcePolicyType.ENTITY, entityName);
+        String policyGroup = resourcePolicyGroupResolver
+                .resolvePolicyGroup(ResourcePolicyType.ENTITY.getId(), entityName);
         if (policyGroup != null) {
             policyGroupField.setValue(policyGroup);
         } else {

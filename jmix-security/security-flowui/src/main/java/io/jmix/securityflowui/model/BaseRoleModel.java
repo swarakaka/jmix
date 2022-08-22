@@ -45,7 +45,7 @@ public abstract class BaseRoleModel {
     protected String description;
 
     @JmixProperty
-    private String source;
+    private RoleSource source;
 
     @JmixProperty
     private Map<String, String> customProperties = new HashMap<>();
@@ -66,11 +66,11 @@ public abstract class BaseRoleModel {
     }
 
     public RoleSource getSource() {
-        return source == null ? null : RoleSource.fromId(source);
+        return source;
     }
 
     public void setSource(RoleSource source) {
-        this.source = source == null ? null : source.getId();
+        this.source = source;
     }
 
     public String getCode() {
