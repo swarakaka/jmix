@@ -23,10 +23,8 @@ import io.jmix.ui.xml.FacetProvider;
 import io.jmix.ui.xml.layout.ComponentLoader;
 import org.dom4j.Element;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Internal
 @org.springframework.stereotype.Component("ui_ScreenSettingsFacetProvider")
@@ -53,8 +51,11 @@ public class ScreenSettingsFacetProvider implements FacetProvider<ScreenSettings
 
         loadAuto(element).ifPresent(facet::setAuto);
 
+        List<String> excludedIds = loadOnlyExcludedIds(context, element);
+        facet.excludeComponentIds(excludedIds.toArray(new String[0]));
+
         if (!facet.isAuto()) {
-            List<String> ids = loadComponentIds(context, element);
+            List<String> ids = loadOnlyIncludedIds(context, element);
             facet.addComponentIds(ids.toArray(new String[0]));
         }
     }
@@ -74,22 +75,36 @@ public class ScreenSettingsFacetProvider implements FacetProvider<ScreenSettings
         return Optional.empty();
     }
 
-    protected List<String> loadComponentIds(ComponentLoader.ComponentContext context, Element root) {
+    protected List<String> loadOnlyExcludedIds(ComponentLoader.ComponentContext context, Element root) {
+        return loadComponents(context, root).entrySet().stream()
+                .filter(Map.Entry::getValue)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+    }
+
+    protected List<String> loadOnlyIncludedIds(ComponentLoader.ComponentContext context, Element root) {
+        return loadComponents(context, root).entrySet().stream()
+                .filter(entry -> !entry.getValue())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+    }
+
+    protected Map<String, Boolean> loadComponents(ComponentLoader.ComponentContext context, Element root) {
         Element componentsElement = root.element("components");
         if (componentsElement == null) {
-            return Collections.emptyList();
+            return Collections.emptyMap();
         }
 
         List<Element> components = componentsElement.elements("component");
-        List<String> result = new ArrayList<>(components.size());
+        Map<String, Boolean> result = new HashMap<>(components.size());
 
         for (Element element : components) {
             String id = element.attributeValue("id");
             if (id == null) {
                 throw new GuiDevelopmentException("ScreenSettings component does not define an id", context);
             }
-
-            result.add(id);
+            String exclude = element.attributeValue("exclude");
+            result.put(id, Boolean.parseBoolean(exclude));
         }
 
         return result;

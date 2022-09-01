@@ -3807,6 +3807,7 @@
 
     <xs:complexType name="screenSettingsComponentType">
         <xs:attribute name="id" type="xs:string" use="required"/>
+        <xs:attribute name="exclude" type="xs:boolean"/>
     </xs:complexType>
 
     <!-- PresentationsFacet   -->
