@@ -27,7 +27,7 @@
     <facets>
         <screenSettings id="facet" auto="true">
             <components>
-                <component id="groupBox" exclude="true"/>
+                <component id="groupBox" enabled="false"/>
             </components>
         </screenSettings>
     </facets>
