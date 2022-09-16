@@ -67,12 +67,11 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
 
     private void onAfterShow(AfterShowEvent afterShowEvent) {
         setupModifiedTracking();
-        setupLock(); // todo rp move to onBeforeShow?
+        setupLock();
     }
 
     private void onBeforeClose(BeforeCloseEvent event) {
         preventUnsavedChanges(event);
-        releaseLock();
     }
 
     private void setupModifiedTracking() {
@@ -589,7 +588,9 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
                     || inMemoryContext.isUpdatePermitted(getEditedEntity()));
             if (isPermittedBySecurity) {
                 entityLockStatus = getLockingSupport().lock(entityId);
-                if (entityLockStatus == PessimisticLockStatus.FAILED) {
+                if (entityLockStatus == PessimisticLockStatus.LOCKED) {
+                    addAfterCloseListener(__ -> releaseLock());
+                } else if (entityLockStatus == PessimisticLockStatus.FAILED) {
                     setReadOnly(true);
                 }
             } else {
