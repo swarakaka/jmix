@@ -40,6 +40,8 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
     public static final String MODE_PARAM = "mode";
     public static final String MODE_READONLY = "readonly";
 
+    public static final String LOCKED_BEFORE_REFRESH_ATTR_NAME = "lockedBeforeRefresh";
+
     private T entityToEdit;
     private String serializedEntityIdToEdit;
 
@@ -572,6 +574,13 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
             return;
         }
 
+        if (isLockedBeforeRefresh()) {
+            // restore state after refresh
+            entityLockStatus = PessimisticLockStatus.LOCKED;
+            addAfterCloseListener(__ -> releaseLock());
+            return;
+        }
+
         Object entityId = EntityValues.getId(editedEntity);
 
         if (!getEntityStates().isNew(editedEntity) && entityId != null) {
@@ -580,15 +589,18 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
 
             FlowuiEntityContext entityContext = new FlowuiEntityContext(metaClass);
             accessManager.applyRegisteredConstraints(entityContext);
+
             InMemoryCrudEntityContext inMemoryContext = new InMemoryCrudEntityContext(metaClass, getApplicationContext());
             accessManager.applyRegisteredConstraints(inMemoryContext);
 
             boolean isPermittedBySecurity = entityContext.isEditPermitted()
                     && (inMemoryContext.updatePredicate() == null
                     || inMemoryContext.isUpdatePermitted(getEditedEntity()));
+
             if (isPermittedBySecurity) {
                 entityLockStatus = getLockingSupport().lock(entityId);
                 if (entityLockStatus == PessimisticLockStatus.LOCKED) {
+                    setLockedBeforeRefresh();
                     addAfterCloseListener(__ -> releaseLock());
                 } else if (entityLockStatus == PessimisticLockStatus.FAILED) {
                     setReadOnly(true);
@@ -626,6 +638,18 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
      */
     private boolean isLocked() {
         return entityLockStatus == PessimisticLockStatus.LOCKED;
+    }
+
+    /**
+     * @return {@code true} if the entity instance has been pessimistically locked in this view before refreshing the
+     * page.
+     */
+    private boolean isLockedBeforeRefresh() {
+        return Boolean.TRUE.equals(getViewAttributes().getAttribute(LOCKED_BEFORE_REFRESH_ATTR_NAME));
+    }
+
+    private void setLockedBeforeRefresh() {
+        getViewAttributes().setAttribute(LOCKED_BEFORE_REFRESH_ATTR_NAME, true);
     }
 
     private void setModifiedAfterOpen(boolean entityModified) {

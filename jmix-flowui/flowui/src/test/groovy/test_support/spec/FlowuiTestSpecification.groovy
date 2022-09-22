@@ -47,7 +47,7 @@ class FlowuiTestSpecification extends Specification {
     void setup() {
         setupAuthentication()
         setupVaadinUi()
-        registerScreenBasePackages()
+        registerScreenBasePackages("test_support.view")
     }
 
     void cleanup() {
@@ -156,7 +156,11 @@ class FlowuiTestSpecification extends Specification {
                 return
             }
 
-            routeConfiguration.setRoute(route.value(), controllerClass)
+            if (route.layout() == UI.class) {
+                routeConfiguration.setRoute(route.value(), controllerClass)
+            } else {
+                routeConfiguration.setRoute(route.value(), controllerClass, route.layout())
+            }
         })
     }
 
