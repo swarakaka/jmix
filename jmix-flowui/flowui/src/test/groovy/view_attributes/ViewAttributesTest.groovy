@@ -49,6 +49,7 @@ class ViewAttributesTest extends FlowuiTestSpecification {
 
         def sessionAttrs = getAttributesFromSession(view.getId().get())
 
+        sessionAttrs[0].getAttribute(STR_NAME) == STR_VALUE
         sessionAttrs[0].getAttribute(STR_NAME) == attributes.getAttribute(STR_NAME)
 
         and: "After closing View attribute should be removed from Vaadin session"
@@ -71,7 +72,10 @@ class ViewAttributesTest extends FlowuiTestSpecification {
 
         def sessionAttributes = getAttributesFromSession(view.getId().get())
 
+        attributes.getAttribute(STR_NAME) == STR_VALUE
         attributes.getAttribute(STR_NAME) == sessionAttributes[0].getAttribute(STR_NAME)
+
+        attributes.getAttribute(INT_NAME) == INT_VALUE
         attributes.getAttribute(INT_NAME) == sessionAttributes[0].getAttribute(INT_NAME)
 
         when: "Remove string attribute"
