@@ -53,4 +53,12 @@ public interface StudioElementsGroups {
             target = {"com.vaadin.flow.component.formlayout.FormLayout"}
     )
     void responsiveSteps();
+
+    @StudioElementsGroup(
+            name = "Items",
+            elementClassFqn = "io.jmix.flowui.kit.component.dropdownbutton.BaseDropdownButtonItem",
+            xmlElement = "items",
+            target = {"io.jmix.flowui.component.dropdownbutton.DropdownButton"}
+    )
+    void items();
 }

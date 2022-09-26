@@ -17,9 +17,10 @@
 package io.jmix.flowui.kit.meta.element;
 
 import com.vaadin.flow.component.accordion.AccordionPanel;
+import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.tabs.Tab;
-import com.vaadin.flow.component.formlayout.FormLayout;
+import io.jmix.flowui.kit.component.dropdownbutton.BaseDropdownButtonItem;
 import io.jmix.flowui.kit.meta.StudioElement;
 import io.jmix.flowui.kit.meta.StudioProperty;
 import io.jmix.flowui.kit.meta.StudioPropertyType;
@@ -163,4 +164,36 @@ public interface StudioElements {
             }
     )
     FormLayout.ResponsiveStep responsiveStep();
+
+    @StudioElement(
+            name = "ActionItem",
+            classFqn = "io.jmix.flowui.kit.component.dropdownbutton.ActionItem",
+            xmlElement = "actionItem",
+            properties = {
+                    @StudioProperty(xmlAttribute = "id", type = StudioPropertyType.COMPONENT_ID),
+                    @StudioProperty(xmlAttribute = "ref", type = StudioPropertyType.ACTION_REF)
+            }
+    )
+    BaseDropdownButtonItem actionItem();
+
+    @StudioElement(
+            name = "ComponentItem",
+            classFqn = "io.jmix.flowui.kit.component.dropdownbutton.ComponentItem",
+            xmlElement = "componentItem",
+            properties = {
+                    @StudioProperty(xmlAttribute = "id", type = StudioPropertyType.COMPONENT_ID)
+            }
+    )
+    BaseDropdownButtonItem componentItem();
+
+    @StudioElement(
+            name = "TextItem",
+            classFqn = "io.jmix.flowui.kit.component.dropdownbutton.TextItem",
+            xmlElement = "textItem",
+            properties = {
+                    @StudioProperty(xmlAttribute = "id", type = StudioPropertyType.COMPONENT_ID),
+                    @StudioProperty(xmlAttribute = "text", type = StudioPropertyType.LOCALIZED_STRING)
+            }
+    )
+    BaseDropdownButtonItem textItem();
 }
