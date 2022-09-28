@@ -22,8 +22,6 @@ import io.jmix.core.common.util.Preconditions;
 import io.jmix.flowui.sys.ExtendedClientDetailsProvider;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Scope;
@@ -39,13 +37,14 @@ import java.util.*;
 @Component("flowui_ViewAttributes")
 @Scope(BeanDefinition.SCOPE_PROTOTYPE)
 public class ViewAttributes {
-    private static final Logger log = LoggerFactory.getLogger(ViewAttributes.class);
 
     protected String viewId;
 
     protected ExtendedClientDetailsProvider extendedClientDetailsProvider;
 
     public ViewAttributes(String viewId) {
+        Preconditions.checkNotNullArgument(viewId);
+
         this.viewId = viewId;
     }
 
@@ -55,27 +54,20 @@ public class ViewAttributes {
     }
 
     /**
-     * @return View id
+     * @return {@link View} id
      */
     public String getViewId() {
         return viewId;
     }
 
     /**
-     * Sets attribute for the View ({@link #getViewId()}) in a current browser tab to Vaadin session.
+     * Sets attribute for the {@link View} ({@link #getViewId()}) in a current browser tab to Vaadin session.
      *
      * @param key   attribute name
      * @param value attribute value
      */
     public void setAttribute(String key, Object value) {
         Preconditions.checkNotEmptyString(key);
-        Preconditions.checkNotEmptyString(viewId);
-
-        VaadinSession session = getVaadinSession();
-        if (session == null) {
-            log.debug("Cannot set '{}' attribute for '{}' View due to Vaadin session is null", key, viewId);
-            return;
-        }
 
         Set<Attributes> attributes = getAttributes(viewId);
 
@@ -86,7 +78,7 @@ public class ViewAttributes {
 
         attributes.add(attributesItem);
 
-        session.setAttribute(viewId, attributes);
+        getVaadinSessionNN().setAttribute(viewId, attributes);
     }
 
     /**
@@ -96,13 +88,6 @@ public class ViewAttributes {
     @Nullable
     public <T> T getAttribute(String key) {
         Preconditions.checkNotEmptyString(key);
-        Preconditions.checkNotEmptyString(viewId);
-
-        VaadinSession session = getVaadinSession();
-        if (session == null) {
-            log.warn("Cannot get '{}' attributes for '{}' View due to Vaadin session is null", key, viewId);
-            return null;
-        }
 
         Set<Attributes> attributes = getAttributes(viewId);
         if (CollectionUtils.isEmpty(attributes)) {
@@ -122,13 +107,6 @@ public class ViewAttributes {
      */
     public void removeAttribute(String key) {
         Preconditions.checkNotEmptyString(key);
-        Preconditions.checkNotEmptyString(viewId);
-
-        VaadinSession session = getVaadinSession();
-        if (session == null) {
-            log.warn("Cannot remove '{}' attribute for '{}' View due to Vaadin session is null", key, viewId);
-            return;
-        }
 
         Set<Attributes> attributes = getAttributes(viewId);
         getAttributesForWindowName(attributes, getWindowName())
@@ -137,41 +115,35 @@ public class ViewAttributes {
                     if (attr.isEmpty()) {
                         attributes.remove(attr);
                     }
-                    session.setAttribute(viewId, CollectionUtils.isEmpty(attributes) ? null : attributes);
+                    getVaadinSessionNN().setAttribute(viewId,
+                            CollectionUtils.isEmpty(attributes) ? null : attributes);
                 });
     }
 
     /**
      * Removes {@link Attributes} instance that contains all attributes for {@link View}.
      */
-    public void removeAttributes() {
-        Preconditions.checkNotEmptyString(viewId);
-
-        VaadinSession session = getVaadinSession();
-        if (session == null) {
-            log.warn("Cannot remove attributes for '{}' View due to Vaadin session is null", viewId);
-            return;
-        }
-
-        Set<Attributes> viewAttributes = getAttributes(viewId); // attributes for View in all browser tabs
+    public void removeAllAttributes() {
+        Set<Attributes> viewAttributes = getAttributes(viewId);
         getAttributesForWindowName(viewAttributes, getWindowName())
                 .ifPresent(attr -> {
                     viewAttributes.remove(attr);
-                    session.setAttribute(viewId, CollectionUtils.isEmpty(viewAttributes) ? null : viewAttributes);
+                    getVaadinSessionNN().setAttribute(viewId,
+                            CollectionUtils.isEmpty(viewAttributes) ? null : viewAttributes);
                 });
     }
 
-    @Nullable
-    protected VaadinSession getVaadinSession() {
-        return VaadinSession.getCurrent();
+    protected VaadinSession getVaadinSessionNN() {
+        VaadinSession session = VaadinSession.getCurrent();
+        if (session == null) {
+            throw new IllegalStateException(ViewAttributes.class.getSimpleName() +
+                    "does not work without defined Vaadin session");
+        }
+        return session;
     }
 
     protected Set<Attributes> getAttributes(String viewId) {
-        VaadinSession session = getVaadinSession();
-        if (session == null) {
-            return new HashSet<>();
-        }
-
+        VaadinSession session = getVaadinSessionNN();
         //noinspection unchecked
         return new HashSet<>(
                 session.getAttribute(viewId) == null

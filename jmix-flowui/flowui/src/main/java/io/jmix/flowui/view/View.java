@@ -102,7 +102,7 @@ public class View<T extends Component> extends Composite<T>
     }
 
     private void removeViewAttributes() {
-        getViewAttributes().removeAttributes();
+        getViewAttributes().removeAllAttributes();
     }
 
     public OperationResult closeWithDefaultAction() {

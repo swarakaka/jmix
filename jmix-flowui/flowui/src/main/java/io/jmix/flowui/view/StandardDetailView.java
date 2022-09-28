@@ -65,11 +65,11 @@ public class StandardDetailView<T> extends StandardView implements DetailView<T>
 
     private void onBeforeShow(BeforeShowEvent event) {
         setupEntityToEdit();
+        setupLock();
     }
 
     private void onAfterShow(AfterShowEvent afterShowEvent) {
         setupModifiedTracking();
-        setupLock();
     }
 
     private void onBeforeClose(BeforeCloseEvent event) {
