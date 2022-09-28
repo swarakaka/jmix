@@ -72,7 +72,6 @@ public class JmixVaadinServletService extends SpringVaadinServletService
     protected WebJarResourceResolver resolver;
     protected Environment environment;
     protected ThemeVariantsProvider themeVariantsProvider;
-    protected CurrentUserSubstitution currentUserSubstitution;
 
     public JmixVaadinServletService(VaadinServlet servlet, DeploymentConfiguration deploymentConfiguration,
                                     String serviceUrl, ApplicationContext applicationContext)
@@ -90,7 +89,6 @@ public class JmixVaadinServletService extends SpringVaadinServletService
         this.messages = applicationContext.getBean(Messages.class);
         this.environment = applicationContext.getBean(Environment.class);
         this.resolver = applicationContext.getBean(WebJarResourceResolver.class);
-        this.currentUserSubstitution = applicationContext.getBean(CurrentUserSubstitution.class);
 
         if (!applicationContext.getBeansOfType(ThemeVariantsProvider.class).isEmpty()) {
             themeVariantsProvider = applicationContext.getBean(ThemeVariantsProvider.class);
@@ -226,10 +224,7 @@ public class JmixVaadinServletService extends SpringVaadinServletService
                 ? super.generateConnectorId(session, connector)
                 : component.getId();
 
-        String username = currentUserSubstitution.getEffectiveUser().getUsername();
-        String locale = session.getLocale().toLanguageTag();
-
-        return toLongNumberString(username + locale + id);
+        return toLongNumberString(id);
     }
 
     protected String toLongNumberString(String data) {
