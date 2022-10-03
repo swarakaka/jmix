@@ -14,14 +14,23 @@
  * limitations under the License.
  */
 
-package io.jmix.flowui.xml.layout.loader.component;
+import { css, registerStyles } from '@vaadin/vaadin-themable-mixin/vaadin-themable-mixin.js';
 
-import io.jmix.flowui.component.loginform.StandardLoginForm;
+const loginForm = css`
+  .additional-fields-container {
+    display: flex;
+    gap: var(--lumo-space-s);
+    justify-content: end;
+    padding-top: var(--lumo-space-m);
+  }
+  .remember-me {
+    align-self: center;
+  }
+  .locale-select {
+    width: calc(var(--lumo-size-m) * 3.5);
+  }
+`;
 
-public class LoginFormLoader extends AbstractLoginFormLoader<StandardLoginForm> {
-
-    @Override
-    protected StandardLoginForm createComponent() {
-        return factory.create(StandardLoginForm.class);
-    }
-}
+registerStyles('jmix-login-form', [loginForm], {
+    moduleId: 'lumo-jmix-login-form-styles'
+});

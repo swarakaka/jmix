@@ -8,6 +8,7 @@
             <form title="msg://loginForm.headerTitle"
                   username="msg://loginForm.username"
                   password="msg://loginForm.password"
+                  rememberMe="msg://loginForm.rememberMe"
                   submit="msg://loginForm.submit"
                   forgotPassword="msg://loginForm.forgotPassword"/>
             <errorMessage title="msg://loginForm.errorTitle"

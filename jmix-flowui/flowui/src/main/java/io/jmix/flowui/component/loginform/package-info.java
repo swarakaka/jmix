@@ -14,14 +14,7 @@
  * limitations under the License.
  */
 
-package io.jmix.flowui.xml.layout.loader.component;
+@NonNullApi
+package io.jmix.flowui.component.loginform;
 
-import io.jmix.flowui.component.loginform.StandardLoginForm;
-
-public class LoginFormLoader extends AbstractLoginFormLoader<StandardLoginForm> {
-
-    @Override
-    protected StandardLoginForm createComponent() {
-        return factory.create(StandardLoginForm.class);
-    }
-}
+import org.springframework.lang.NonNullApi;
