@@ -17,7 +17,7 @@
 package io.jmix.flowui.kit.component.loginform;
 
 /**
- * POJO class that should be used as JSON item in {@link JmixLoginForm}.
+ * POJO class that is supposed to be used as JSON item in {@link JmixLoginForm}.
  */
 public class LocaleItem {
 

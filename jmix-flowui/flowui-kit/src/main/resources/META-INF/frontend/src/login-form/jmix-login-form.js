@@ -154,8 +154,8 @@ class JmixLoginForm extends LoginForm {
         this.$.localeSelectComboBox.addEventListener('value-changed', (e) => this._localeValueChanged(e));
         this.$.rememberMeCheckbox.addEventListener('checked-changed', (e) => this._onRememberMeValueChange(e));
 
-        this.$.localeSelectComboBox.isJmixFromClient = true // todo rp ??
-        this.$.rememberMeCheckbox.isJmixFromClient = true
+        this.$.localeSelectComboBox.jmixUserOriginated = true
+        this.$.rememberMeCheckbox.jmixUserOriginated = true
     }
 
     _onVisibilityPropertiesChanged(rememberMeVisibility, localesVisibility) {
@@ -184,31 +184,35 @@ class JmixLoginForm extends LoginForm {
 
         if (valueToSelect
             && currentValue !== valueToSelect) {
-            this.$.localeSelectComboBox.isJmixFromClient = false;
+            this.$.localeSelectComboBox.jmixUserOriginated = false;
             this.$.localeSelectComboBox.value = valueToSelect;
         }
     }
 
+    setRememberMe(rememberMe) {
+        if (this.$.rememberMeCheckbox.checked !== rememberMe) {
+            this.$.rememberMeCheckbox.jmixUserOriginated = false;
+            this.$.rememberMeCheckbox.checked = rememberMe;
+        }
+    }
+
     _onRememberMeValueChange(e) {
-        const customEvent = new CustomEvent('rememberMeChanged', {detail: {checked: e.detail.value}});
-        this.dispatchEvent(customEvent);
+        if (this.$.rememberMeCheckbox.jmixUserOriginated) {
+            const customEvent = new CustomEvent('rememberMeChanged', {detail: {checked: e.detail.value}});
+            this.dispatchEvent(customEvent);
+        }
+        this.$.rememberMeCheckbox.jmixUserOriginated = true;
     }
 
     _localeValueChanged(e) {
         const selectedValue = e.detail.value;
         const localeString = this._getLocaleString(selectedValue);
-        const isJmixFromClient = this.$.localeSelectComboBox.isJmixFromClient;
 
-        this.$.localeSelectComboBox.isJmixFromClient = true;
-
-        const customEvent = new CustomEvent('localeChanged',
-            {
-                detail: {
-                    localeString: localeString,
-                    isJmixFromClient: isJmixFromClient
-                }
-            });
-        this.dispatchEvent(customEvent);
+        if (this.$.localeSelectComboBox.jmixUserOriginated) {
+            const customEvent = new CustomEvent('localeChanged', {detail: {localeString: localeString}});
+            this.dispatchEvent(customEvent);
+        }
+        this.$.localeSelectComboBox.jmixUserOriginated = true;
     }
 
     _getLocaleString(localizedName) {

@@ -47,38 +47,70 @@ public class JmixLoginForm extends LoginForm {
     protected Registration rememberMeChangedRegistration;
     protected Registration localeChangedRegistration;
 
+    /**
+     * @return entered username
+     */
     @Synchronize(USERNAME_PROPERTY)
     public String getUsername() {
         return getElement().getProperty(USERNAME_PROPERTY);
     }
 
+    /**
+     * Sets username to the field.
+     *
+     * @param username username to set
+     */
     public void setUsername(String username) {
         getElement().setProperty(USERNAME_PROPERTY, username);
     }
 
+    /**
+     * @return entered password
+     */
     @Synchronize(PASSWORD_PROPERTY)
     public String getPassword() {
         return getElement().getProperty(PASSWORD_PROPERTY);
     }
 
+    /**
+     * Sets password to the field.
+     *
+     * @param password password to set
+     */
     public void setPassword(String password) {
         getElement().setProperty(PASSWORD_PROPERTY, password);
     }
 
+    /**
+     * @return {@code true} if "Remember Me" component is visible
+     */
     @Synchronize(REMEMBER_ME_VISIBILITY_PROPERTY)
     public boolean isRememberMeVisible() {
         return getElement().getProperty(REMEMBER_ME_VISIBILITY_PROPERTY, true);
     }
 
+    /**
+     * Sets visibility of "Remember Me" component.
+     *
+     * @param visible whether component should be visible
+     */
     public void setRememberMeVisible(boolean visible) {
         getElement().setProperty(REMEMBER_ME_VISIBILITY_PROPERTY, visible);
     }
 
+    /**
+     * @return {@code true} if component with locales is visible
+     */
     @Synchronize(LOCALES_VISIBILITY_PROPERTY)
     public boolean isLocalesSelectVisible() {
         return getElement().getProperty(LOCALES_VISIBILITY_PROPERTY, true);
     }
 
+    /**
+     * Sets visibility of component with locales
+     *
+     * @param visible whether component should be visible
+     */
     public void setLocalesSelectVisible(boolean visible) {
         getElement().setProperty(LOCALES_VISIBILITY_PROPERTY, visible);
     }
@@ -87,12 +119,15 @@ public class JmixLoginForm extends LoginForm {
         this.locales = new HashMap<>(locales);
 
         List<LocaleItem> localeItems = locales.entrySet().stream()
-                .map(entry -> new LocaleItem(resolveLocale(entry.getValue()), entry.getKey()))
+                .map(entry -> new LocaleItem(localeToString(entry.getValue()), entry.getKey()))
                 .collect(Collectors.toList());
 
         getElement().setPropertyJson("locales", JsonSerializer.toJson(localeItems));
     }
 
+    /**
+     * @return selected locale
+     */
     public Locale getSelectedLocale() {
         return selectedLocale;
     }
@@ -102,16 +137,23 @@ public class JmixLoginForm extends LoginForm {
             throw new IllegalArgumentException("Locale cannot be null");
         }
 
-        if (locales.containsValue(locale) && !locale.equals(selectedLocale)) {
-            getElement().callJsFunction("selectLocale", locale.toLanguageTag());
+        if (isLocaleChanged(locale)) {
+            getElement().callJsFunction("selectLocale", localeToString(locale));
         }
     }
 
+    /**
+     * @return {@code true} if "Remember Me" option is checked
+     */
     public boolean isRememberMe() {
         return rememberMe;
     }
 
-    // todo rp rememberMe setter ? event?
+    public void setRememberMe(boolean rememberMe) {
+        if (isRememberMeChanged(rememberMe)) {
+            getElement().callJsFunction("setRememberMe", rememberMe);
+        }
+    }
 
     protected void setRememberMeChangedHandler(ComponentEventListener<JmixRememberMeChangedEvent> listener) {
         if (rememberMeChangedRegistration != null) {
@@ -133,7 +175,15 @@ public class JmixLoginForm extends LoginForm {
         }
     }
 
-    protected String resolveLocale(Locale locale) {
+    protected boolean isRememberMeChanged(boolean rememberMe) {
+        return this.rememberMe != rememberMe;
+    }
+
+    protected boolean isLocaleChanged(Locale locale) {
+        return locales.containsValue(locale) && !locale.equals(selectedLocale);
+    }
+
+    protected String localeToString(Locale locale) {
         return locale.toLanguageTag();
     }
 
@@ -157,22 +207,15 @@ public class JmixLoginForm extends LoginForm {
     protected static class JmixLocaleChangedEvent extends ComponentEvent<JmixLoginForm> {
 
         protected final String localeString;
-        protected final Boolean isJmixFromClient;
 
         public JmixLocaleChangedEvent(JmixLoginForm source, boolean fromClient,
-                                      @EventData("event.detail.localeString") String localeString,
-                                      @EventData("event.detail.isJmixFromClient") Boolean isJmixFromClient) {
+                                      @EventData("event.detail.localeString") String localeString) {
             super(source, fromClient);
             this.localeString = localeString;
-            this.isJmixFromClient = isJmixFromClient;
         }
 
         public String getLocaleString() {
             return localeString;
-        }
-
-        public Boolean isJmixFromClient() {
-            return isJmixFromClient;
         }
     }
 }
