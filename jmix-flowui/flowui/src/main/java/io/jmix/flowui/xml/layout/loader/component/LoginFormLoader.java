@@ -24,4 +24,12 @@ public class LoginFormLoader extends AbstractLoginFormLoader<StandardLoginForm> 
     protected StandardLoginForm createComponent() {
         return factory.create(StandardLoginForm.class);
     }
+
+    @Override
+    public void loadComponent() {
+        super.loadComponent();
+
+        loadBoolean(element, "rememberMeVisible", resultComponent::setRememberMeVisible);
+        loadBoolean(element, "localesVisible", resultComponent::setLocalesVisible);
+    }
 }

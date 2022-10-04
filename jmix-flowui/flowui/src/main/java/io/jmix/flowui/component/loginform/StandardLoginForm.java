@@ -30,7 +30,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
 import java.util.Locale;
-import java.util.Map;
 
 public class StandardLoginForm extends JmixLoginForm implements ApplicationContextAware, InitializingBean {
 
@@ -51,12 +50,6 @@ public class StandardLoginForm extends JmixLoginForm implements ApplicationConte
     protected void initComponent() {
         setRememberMeChangedHandler(this::onRememberMeChangedEvent);
         setLocaleChangedHandler(this::onLocaleChangedEvent);
-
-        // init available locales and set default locale
-        Map<String, Locale> availableLocalesMap = messageTools.getAvailableLocalesMap();
-        setLocaleOptions(availableLocalesMap);
-
-        selectLocale(VaadinSession.getCurrent().getLocale());
     }
 
     protected void autowireDependencies() {
@@ -160,6 +153,11 @@ public class StandardLoginForm extends JmixLoginForm implements ApplicationConte
     @Override
     protected String localeToString(Locale locale) {
         return LocaleResolver.localeToString(locale);
+    }
+
+    @Override
+    protected String getLocalizedItemLabel(Locale locale) {
+        return messageTools.getLocaleDisplayName(locale);
     }
 
     /**

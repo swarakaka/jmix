@@ -17,12 +17,35 @@
 import '@vaadin/text-field/src/vaadin-text-field.js';
 import '@vaadin/password-field/src/vaadin-password-field.js';
 import '@vaadin/checkbox/src/vaadin-checkbox.js';
-import '@vaadin/combo-box/src/vaadin-combo-box.js';
+import '@vaadin/select/src/vaadin-select.js';
 import '@vaadin/login/src/vaadin-login-form-wrapper.js';
 
 import {html} from '@polymer/polymer/polymer-element.js';
 import {LoginForm} from '@vaadin/vaadin-login/src/vaadin-login-form.js';
 
+/**
+ * ### Styling
+ *
+ * The following custom properties are available for styling:
+ *
+ * Custom property                          | Description                               | Default
+ * -----------------------------------------|-------------------------------------------|---------
+ * `--jmix-login-form-locales-select-width` | Default width of the locales select field | `8em`
+ *
+ * The following attributes are available:
+ *
+ * Attribute                 | Description
+ * --------------------------|-------------
+ * `username`                | The username that is entered or provided from server-side.
+ * `password`                | The password that is entered or provided from server-side.
+ * `rememberMeVisibility`    | Defines the visibility of "Remember Me" component.
+ * `localesVisibility`       | Defines the visibility of locales selection component.
+ * `locales`                 | List of available locales to select.
+ * `i18n`                    | CAUTION! Copied from LoginMixin. Additionally, defines "rememberMe" property.
+ *
+ * @fires {CustomEvent} remember-me-changed - Fired when "rememberMeCheckbox" is checked or unchecked.
+ * @fires {CustomEvent} locale-selection-changed - Fired when selection in "localesSelect" is changed
+ */
 class JmixLoginForm extends LoginForm {
     static get template() {
         return html`
@@ -41,8 +64,10 @@ class JmixLoginForm extends LoginForm {
                     i18n="{{i18n}}"
                     on-login="_retargetEvent"
                     on-forgot-password="_retargetEvent"
+                    class="jmix-login-form-vaadin-login-form-wrapper"
             >
-                <form part="vaadin-login-native-form" method="POST" action$="[[action]]" slot="form">
+                <form part="vaadin-login-native-form" method="POST" action$="[[action]]" slot="form"
+                      class="jmix-login-form-form">
                     <input id="csrf" type="hidden"/>
                     <vaadin-text-field
                             name="username"
@@ -71,13 +96,13 @@ class JmixLoginForm extends LoginForm {
                         <input type="password" slot="input" on-keyup="_handleInputKeyup"/>
                     </vaadin-password-field>
 
-                    <div id="additionalFields" class="additional-fields-container">
+                    <div id="additionalFields" class="jmix-login-form-additional-fields-container">
                         <vaadin-checkbox id="rememberMeCheckbox"
                                          label="[[i18n.form.rememberMe]]"
-                                         class="remember-me"></vaadin-checkbox>
-                        <vaadin-combo-box id="localeSelectComboBox"
-                                          class="locale-select">
-                        </vaadin-combo-box>
+                                         class="jmix-login-form-remember-me"></vaadin-checkbox>
+                        <vaadin-select id="localesSelect"
+                                       class="jmix-login-form-locales-select">
+                        </vaadin-select>
                     </div>
 
                     <vaadin-button part="vaadin-login-submit" theme="primary contained" on-click="submit"
@@ -151,41 +176,29 @@ class JmixLoginForm extends LoginForm {
 
     ready() {
         super.ready();
-        this.$.localeSelectComboBox.addEventListener('value-changed', (e) => this._localeValueChanged(e));
+        this.$.localesSelect.addEventListener('value-changed', (e) => this._localeValueChanged(e));
         this.$.rememberMeCheckbox.addEventListener('checked-changed', (e) => this._onRememberMeValueChange(e));
 
-        this.$.localeSelectComboBox.jmixUserOriginated = true
+        this.$.localesSelect.jmixUserOriginated = true
         this.$.rememberMeCheckbox.jmixUserOriginated = true
     }
 
     _onVisibilityPropertiesChanged(rememberMeVisibility, localesVisibility) {
         this.$.additionalFields.hidden = !rememberMeVisibility && !localesVisibility;
         this.$.rememberMeCheckbox.hidden = !rememberMeVisibility;
-        this.$.localeSelectComboBox.hidden = !localesVisibility;
+        this.$.localesSelect.hidden = !localesVisibility;
     }
 
-    _onLocalesPropertyChanged(locales) {
-        let items = [];
-        for (const locale of locales) {
-            items.push(locale.localizedName);
-        }
-        this.$.localeSelectComboBox.items = items;
+    _onLocalesPropertyChanged(items) {
+        this.$.localesSelect.items = items;
     }
 
     selectLocale(localeString) {
-        let valueToSelect;
-        for (const locale of this.locales) {
-            if (locale.localeString === localeString) {
-                valueToSelect = locale.localizedName;
-            }
-        }
+        const currentValue = this.$.localesSelect.value;
 
-        const currentValue = this.$.localeSelectComboBox.value;
-
-        if (valueToSelect
-            && currentValue !== valueToSelect) {
-            this.$.localeSelectComboBox.jmixUserOriginated = false;
-            this.$.localeSelectComboBox.value = valueToSelect;
+        if (localeString && currentValue !== localeString) {
+            this.$.localesSelect.jmixUserOriginated = false;
+            this.$.localesSelect.value = localeString;
         }
     }
 
@@ -198,30 +211,20 @@ class JmixLoginForm extends LoginForm {
 
     _onRememberMeValueChange(e) {
         if (this.$.rememberMeCheckbox.jmixUserOriginated) {
-            const customEvent = new CustomEvent('rememberMeChanged', {detail: {checked: e.detail.value}});
+            const customEvent = new CustomEvent('remember-me-changed', {detail: {checked: e.detail.value}});
             this.dispatchEvent(customEvent);
         }
         this.$.rememberMeCheckbox.jmixUserOriginated = true;
     }
 
     _localeValueChanged(e) {
-        const selectedValue = e.detail.value;
-        const localeString = this._getLocaleString(selectedValue);
+        const localeString = e.detail.value;
 
-        if (this.$.localeSelectComboBox.jmixUserOriginated) {
-            const customEvent = new CustomEvent('localeChanged', {detail: {localeString: localeString}});
+        if (this.$.localesSelect.jmixUserOriginated) {
+            const customEvent = new CustomEvent('locale-selection-changed', {detail: {localeString: localeString}});
             this.dispatchEvent(customEvent);
         }
-        this.$.localeSelectComboBox.jmixUserOriginated = true;
-    }
-
-    _getLocaleString(localizedName) {
-        for (const locale of this.locales) {
-            if (locale.localizedName === localizedName) {
-                return locale.localeString;
-            }
-        }
-        return null;
+        this.$.localesSelect.jmixUserOriginated = true;
     }
 }
 

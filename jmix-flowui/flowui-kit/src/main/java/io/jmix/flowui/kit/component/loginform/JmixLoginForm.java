@@ -22,27 +22,27 @@ import com.vaadin.flow.component.login.LoginForm;
 import com.vaadin.flow.internal.JsonSerializer;
 import com.vaadin.flow.shared.Registration;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import javax.annotation.Nullable;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Tag("jmix-login-form")
 @JsModule("./src/login-form/jmix-login-form.js")
 public class JmixLoginForm extends LoginForm {
 
-    private static final String REMEMBER_ME_CHANGED_EVENT = "rememberMeChanged";
-    private static final String LOCALE_CHANGED_EVENT = "localeChanged";
+    private static final String REMEMBER_ME_CHANGED_EVENT = "remember-me-changed";
+    private static final String LOCALE_CHANGED_EVENT = "locale-selection-changed";
 
     private static final String USERNAME_PROPERTY = "username";
     private static final String PASSWORD_PROPERTY = "password";
     private static final String REMEMBER_ME_VISIBILITY_PROPERTY = "rememberMeVisibility";
     private static final String LOCALES_VISIBILITY_PROPERTY = "localesVisibility";
 
-    protected Map<String, Locale> locales;
+    protected List<Locale> locales;
     protected Locale selectedLocale = null;
     protected boolean rememberMe = false;
+    protected Function<Locale, String> localeItemLabelGenerator;
 
     protected Registration rememberMeChangedRegistration;
     protected Registration localeChangedRegistration;
@@ -102,7 +102,7 @@ public class JmixLoginForm extends LoginForm {
      * @return {@code true} if component with locales is visible
      */
     @Synchronize(LOCALES_VISIBILITY_PROPERTY)
-    public boolean isLocalesSelectVisible() {
+    public boolean isLocalesVisible() {
         return getElement().getProperty(LOCALES_VISIBILITY_PROPERTY, true);
     }
 
@@ -111,15 +111,20 @@ public class JmixLoginForm extends LoginForm {
      *
      * @param visible whether component should be visible
      */
-    public void setLocalesSelectVisible(boolean visible) {
+    public void setLocalesVisible(boolean visible) {
         getElement().setProperty(LOCALES_VISIBILITY_PROPERTY, visible);
     }
 
-    public void setLocaleOptions(Map<String, Locale> locales) {
-        this.locales = new HashMap<>(locales);
+    /**
+     * Sets available locales to select.
+     *
+     * @param locales locale items
+     */
+    public void setLocaleItems(Collection<Locale> locales) {
+        this.locales = new ArrayList<>(locales);
 
-        List<LocaleItem> localeItems = locales.entrySet().stream()
-                .map(entry -> new LocaleItem(localeToString(entry.getValue()), entry.getKey()))
+        List<LocaleItem> localeItems = locales.stream()
+                .map(locale -> new LocaleItem(generateItemLabel(locale), localeToString(locale)))
                 .collect(Collectors.toList());
 
         getElement().setPropertyJson("locales", JsonSerializer.toJson(localeItems));
@@ -149,10 +154,31 @@ public class JmixLoginForm extends LoginForm {
         return rememberMe;
     }
 
+    /**
+     * Sets whether "Remember Me" option should be checked or not.
+     *
+     * @param rememberMe rememberMe option
+     */
     public void setRememberMe(boolean rememberMe) {
         if (isRememberMeChanged(rememberMe)) {
             getElement().callJsFunction("setRememberMe", rememberMe);
         }
+    }
+
+    /**
+     * @return label generator for the locale items or {@code null} if not set
+     */
+    public Function<Locale, String> getLocaleItemLabelGenerator() {
+        return localeItemLabelGenerator;
+    }
+
+    /**
+     * Sets label generator for the locale items.
+     *
+     * @param localeItemLabelGenerator item label generator to set
+     */
+    public void setLocaleItemLabelGenerator(@Nullable Function<Locale, String> localeItemLabelGenerator) {
+        this.localeItemLabelGenerator = localeItemLabelGenerator;
     }
 
     protected void setRememberMeChangedHandler(ComponentEventListener<JmixRememberMeChangedEvent> listener) {
@@ -179,8 +205,20 @@ public class JmixLoginForm extends LoginForm {
         return this.rememberMe != rememberMe;
     }
 
+    protected String generateItemLabel(Locale locale) {
+        if (localeItemLabelGenerator != null) {
+            return localeItemLabelGenerator.apply(locale);
+        }
+
+        return getLocalizedItemLabel(locale);
+    }
+
+    protected String getLocalizedItemLabel(Locale locale) {
+        return locale.getDisplayLanguage();
+    }
+
     protected boolean isLocaleChanged(Locale locale) {
-        return locales.containsValue(locale) && !locale.equals(selectedLocale);
+        return locales.contains(locale) && !locale.equals(selectedLocale);
     }
 
     protected String localeToString(Locale locale) {

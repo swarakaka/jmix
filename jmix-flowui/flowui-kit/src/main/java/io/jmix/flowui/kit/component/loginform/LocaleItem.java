@@ -21,30 +21,30 @@ package io.jmix.flowui.kit.component.loginform;
  */
 public class LocaleItem {
 
-    String localeString;
-    String localizedName;
+    String label;
+    String value;
 
     public LocaleItem() {
     }
 
-    public LocaleItem(String localeString, String localizedName) {
-        this.localeString = localeString;
-        this.localizedName = localizedName;
+    public LocaleItem(String label, String value) {
+        this.label = label;
+        this.value = value;
     }
 
-    public String getLocaleString() {
-        return localeString;
+    public String getValue() {
+        return value;
     }
 
-    public void setLocaleString(String localeString) {
-        this.localeString = localeString;
+    public void setValue(String value) {
+        this.value = value;
     }
 
-    public String getLocalizedName() {
-        return localizedName;
+    public String getLabel() {
+        return label;
     }
 
-    public void setLocalizedName(String localizedName) {
-        this.localizedName = localizedName;
+    public void setLabel(String label) {
+        this.label = label;
     }
 }

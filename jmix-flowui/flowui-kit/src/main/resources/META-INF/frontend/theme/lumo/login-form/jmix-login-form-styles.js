@@ -17,17 +17,21 @@
 import { css, registerStyles } from '@vaadin/vaadin-themable-mixin/vaadin-themable-mixin.js';
 
 const loginForm = css`
-  .additional-fields-container {
+  .jmix-login-form-additional-fields-container {
     display: flex;
     gap: var(--lumo-space-s);
     justify-content: end;
     padding-top: var(--lumo-space-m);
   }
-  .remember-me {
+  .jmix-login-form-remember-me {
     align-self: center;
   }
-  .locale-select {
-    width: calc(var(--lumo-size-m) * 3.5);
+  .jmix-login-form-locales-select {
+    width: var(--jmix-login-form-locales-select-width, 8em);
+  }
+  
+  vaadin-select.jmix-login-form-locales-select vaadin-select-value-button {
+    width: 0;
   }
 `;
 
