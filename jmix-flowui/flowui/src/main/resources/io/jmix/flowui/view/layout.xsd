@@ -1906,6 +1906,23 @@
         </xs:complexContent>
     </xs:complexType>
 
+    <!-- SimplePagination -->
+    <xs:complexType name="simplePaginationComponent">
+        <xs:complexContent>
+            <xs:extension base="baseComponent">
+                <xs:attribute name="loaderId" type="xs:string" use="required"/>
+                <xs:attribute name="autoLoad" type="xs:boolean"/>
+
+                <xs:attribute name="itemsPerPageDefaultValue" type="xs:integer"/>
+                <xs:attribute name="itemsPerPageItems" type="resourceString"/>
+                <xs:attribute name="itemsPerPageVisible" type="xs:boolean"/>
+                <xs:attribute name="itemsPerPageUnlimitedOptionVisible" type="xs:boolean"/>
+
+                <xs:attributeGroup ref="hasClassName"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
     <!-- Button-->
     <xs:complexType name="buttonComponent">
         <xs:complexContent>
@@ -2867,6 +2884,7 @@
                 <xs:element name="treeDataGrid" type="treeDataGridComponent"/>
                 <xs:element name="loginForm" type="loginFormComponent"/>
                 <xs:element name="loginOverlay" type="loginOverlayComponent"/>
+                <xs:element name="simplePagination" type="simplePaginationComponent"/>
             </xs:choice>
         </xs:sequence>
     </xs:group>
