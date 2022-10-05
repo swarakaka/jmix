@@ -27,7 +27,14 @@ import java.util.Optional;
 @ConstructorBinding
 public class FlowuiLoginProperties {
 
+    /**
+     * Defines default username that is supposed to be used in login form.
+     */
     String defaultUsername;
+
+    /**
+     * Defines default password that is supposed to be used in login form.
+     */
     String defaultPassword;
 
     public FlowuiLoginProperties(
@@ -38,10 +45,16 @@ public class FlowuiLoginProperties {
         this.defaultPassword = defaultPassword;
     }
 
+    /**
+     * @see #defaultUsername
+     */
     public String getDefaultUsername() {
         return defaultUsername;
     }
 
+    /**
+     * @see #defaultPassword
+     */
     public String getDefaultPassword() {
         return defaultPassword;
     }

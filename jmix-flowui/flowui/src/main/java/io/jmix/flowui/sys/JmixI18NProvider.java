@@ -30,8 +30,10 @@ public class JmixI18NProvider implements I18NProvider {
     protected CoreProperties coreProperties;
     protected Messages messages;
 
-    public JmixI18NProvider(CoreProperties coreProperties) {
+    public JmixI18NProvider(CoreProperties coreProperties,
+                            Messages messages) {
         this.coreProperties = coreProperties;
+        this.messages = messages;
     }
 
     @Override
