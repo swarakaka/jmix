@@ -4,6 +4,7 @@
       title="msg://LoginView.title">
     <layout justifyContent="CENTER" alignItems="CENTER" className="jmix-login-main-layout">
         <loginForm id="login"
+                   rememberMeVisible="false"
                    forgotPasswordButtonVisible="false">
             <form title="msg://loginForm.headerTitle"
                   username="msg://loginForm.username"

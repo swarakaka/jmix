@@ -47,7 +47,7 @@ public class FlowuiLoginProperties {
     }
 
     /**
-     * @return default username if it doesn't equal to '<disabled>' value.
+     * @return default username if it doesn't equal to {@code <disabled>} value.
      */
     public Optional<String> getDefaultUsernameOptional() {
         return Strings.isNullOrEmpty(defaultUsername) || "<disabled>".equals(defaultUsername)
@@ -56,7 +56,7 @@ public class FlowuiLoginProperties {
     }
 
     /**
-     * @return default password if it doesn't equal to '<disabled>' value.
+     * @return default password if it doesn't equal to {@code <disabled>} value.
      */
     public Optional<String> getDefaultPasswordOptional() {
         return Strings.isNullOrEmpty(defaultPassword) || "<disabled>".equals(defaultPassword)

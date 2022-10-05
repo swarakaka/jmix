@@ -137,7 +137,7 @@ public class JmixLoginForm extends LoginForm {
         return selectedLocale;
     }
 
-    public void selectLocale(Locale locale) {
+    public void setSelectedLocale(Locale locale) {
         if (locale == null) {
             throw new IllegalArgumentException("Locale cannot be null");
         }

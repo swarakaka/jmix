@@ -59,8 +59,8 @@ public class StandardLoginForm extends JmixLoginForm implements ApplicationConte
     /**
      * Selects default locale from {@link MessageTools#getDefaultLocale()}.
      */
-    public void selectDefaultLocale() {
-        selectLocale(messageTools.getDefaultLocale());
+    public void setSelectedDefaultLocale() {
+        setSelectedLocale(messageTools.getDefaultLocale());
     }
 
     /**
@@ -69,8 +69,8 @@ public class StandardLoginForm extends JmixLoginForm implements ApplicationConte
      * @param locale locale to select
      */
     @Override
-    public void selectLocale(Locale locale) {
-        super.selectLocale(locale);
+    public void setSelectedLocale(Locale locale) {
+        super.setSelectedLocale(locale);
 
         if (isLocaleChanged(locale)) {
             handleLocaleChanged(false, locale);
