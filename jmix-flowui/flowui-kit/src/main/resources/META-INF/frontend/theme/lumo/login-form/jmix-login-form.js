@@ -17,7 +17,7 @@
 import '@vaadin/text-field/src/vaadin-text-field.js';
 import '@vaadin/password-field/src/vaadin-password-field.js';
 import '@vaadin/checkbox/src/vaadin-checkbox.js';
-import '@vaadin/combo-box/src/vaadin-combo-box.js';
+import '@vaadin/select/src/vaadin-select.js';
 import '@vaadin/login/src/vaadin-login-form-wrapper.js';
 
 import './jmix-login-form-styles.js';
