@@ -88,16 +88,16 @@ public class JmixItemsPerPage extends Composite<Div> {
      *
      * @return
      */
-    public boolean getItemsPerPageUnlimitedOptionVisible() {
+    public boolean isItemsPerPageUnlimitedItemVisible() {
         return itemsPerPageSelect.isEmptySelectionAllowed();
     }
 
     /**
      *
-     * @param unlimitedOptionVisible
+     * @param unlimitedItemVisible
      */
-    public void setItemsPerPageUnlimitedOptionVisible(boolean unlimitedOptionVisible) {
-        itemsPerPageSelect.setEmptySelectionAllowed(unlimitedOptionVisible);
+    public void setItemsPerPageUnlimitedItemVisible(boolean unlimitedItemVisible) {
+        itemsPerPageSelect.setEmptySelectionAllowed(unlimitedItemVisible);
     }
 
     /**

@@ -16,10 +16,13 @@
 
 package io.jmix.flowui.component.pagination;
 
+import io.jmix.core.LoadContext;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.flowui.model.CollectionChangeType;
 
+import javax.annotation.Nullable;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public interface PaginationLoader {
 
@@ -72,4 +75,18 @@ public interface PaginationLoader {
      * @return meta class of entity
      */
     MetaClass getEntityMetaClass();
+
+    /**
+     * @return total count delegate or {@code null} otherwise
+     */
+    @Nullable
+    Function<LoadContext, Integer> getTotalCountDelegate();
+
+    /**
+     * Sets delegate which is used to get the total count of items.
+     *
+     * @param totalCountDelegate function that takes current {@link LoadContext} of loader and return calculated
+     *                          total count
+     */
+    void setTotalCountDelegate(@Nullable Function<LoadContext, Integer> totalCountDelegate);
 }

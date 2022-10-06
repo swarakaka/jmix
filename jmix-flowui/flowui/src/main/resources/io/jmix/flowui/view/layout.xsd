@@ -1911,7 +1911,6 @@
         <xs:complexContent>
             <xs:extension base="baseComponent">
                 <xs:attribute name="loaderId" type="xs:string" use="required"/>
-                <xs:attribute name="autoLoad" type="xs:boolean"/>
 
                 <xs:attribute name="itemsPerPageDefaultValue" type="xs:integer"/>
                 <xs:attribute name="itemsPerPageItems" type="resourceString"/>

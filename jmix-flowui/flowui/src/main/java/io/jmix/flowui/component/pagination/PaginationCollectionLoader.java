@@ -31,7 +31,9 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Nullable;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 @Component("flowui_PaginationDataProviderImpl")
 @Scope(BeanDefinition.SCOPE_PROTOTYPE)
@@ -46,6 +48,9 @@ public class PaginationCollectionLoader implements PaginationLoader {
     protected Consumer<CollectionChangeType> refreshListener;
     protected WeakCollectionChangeListener<?> weakContainerCollectionChangeListener;
 
+    protected Consumer<CollectionChangeEvent<?>> containerCollectionChangeListener;
+    protected Function<LoadContext, Integer> totalCountDelegate;
+
     public PaginationCollectionLoader(BaseCollectionLoader loader) {
         Preconditions.checkNotNullArgument(loader);
         Preconditions.checkNotNullArgument(loader.getContainer(),
@@ -58,11 +63,7 @@ public class PaginationCollectionLoader implements PaginationLoader {
     }
 
     protected void attachCollectionChangeListener() {
-        Consumer<CollectionChangeEvent<?>> containerCollectionChangeListener = e -> {
-            if (refreshListener != null) {
-                refreshListener.accept(e.getChangeType());
-            }
-        };
+        containerCollectionChangeListener = e -> refreshListener.accept(e.getChangeType());
 
         weakContainerCollectionChangeListener =
                 new WeakCollectionChangeListener<>(container, (Consumer) containerCollectionChangeListener);
@@ -95,8 +96,13 @@ public class PaginationCollectionLoader implements PaginationLoader {
 
     @Override
     public int getCount() {
+        if (totalCountDelegate != null) {
+            LoadContext<?> context = ((CollectionLoader<?>) loader).createLoadContext();
+            return totalCountDelegate.apply(context);
+        }
+
         if (loader instanceof CollectionLoader) {
-            LoadContext context = ((CollectionLoader) loader).createLoadContext();
+            LoadContext<?> context = ((CollectionLoader<?>) loader).createLoadContext();
             return (int) dataManager.getCount(context);
         } else if (loader instanceof KeyValueCollectionLoader) {
             ValueLoadContext context = ((KeyValueCollectionLoader) loader).createLoadContext();
@@ -124,11 +130,23 @@ public class PaginationCollectionLoader implements PaginationLoader {
 
     @Override
     public void setCollectionChangeListener(Consumer<CollectionChangeType> listener) {
+        Preconditions.checkNotNullArgument(listener);
         this.refreshListener = listener;
     }
 
     @Override
     public MetaClass getEntityMetaClass() {
         return container.getEntityMetaClass();
+    }
+
+    @Nullable
+    @Override
+    public Function<LoadContext, Integer> getTotalCountDelegate() {
+        return totalCountDelegate;
+    }
+
+    @Override
+    public void setTotalCountDelegate(@Nullable Function<LoadContext, Integer> totalCountDelegate) {
+        this.totalCountDelegate = totalCountDelegate;
     }
 }

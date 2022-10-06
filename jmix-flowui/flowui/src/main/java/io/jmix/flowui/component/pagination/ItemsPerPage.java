@@ -16,8 +16,13 @@
 
 package io.jmix.flowui.component.pagination;
 
+import com.vaadin.flow.component.AbstractField.ComponentValueChangeEvent;
+import com.vaadin.flow.component.HasEnabled;
+import com.vaadin.flow.component.HasValue.ValueChangeListener;
+import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.data.provider.ListDataProvider;
+import com.vaadin.flow.shared.Registration;
 import io.jmix.core.Messages;
-import io.jmix.core.common.util.Preconditions;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.flowui.FlowuiComponentProperties;
 import io.jmix.flowui.FlowuiProperties;
@@ -33,7 +38,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ItemsPerPage extends JmixItemsPerPage implements ApplicationContextAware, InitializingBean {
+public class ItemsPerPage extends JmixItemsPerPage implements ApplicationContextAware, InitializingBean, HasEnabled {
 
     protected ApplicationContext applicationContext;
     protected Messages messages;
@@ -62,22 +67,54 @@ public class ItemsPerPage extends JmixItemsPerPage implements ApplicationContext
     }
 
     protected void initComponent() {
-        getContent(); // init content component
+        getContent(); // init component content
         setLabelText(messages.getMessage("pagination.itemsPerPage.label.text"));
     }
 
+    /**
+     * Sets loader to the component.
+     *
+     * @param loader loader to set
+     */
     public void setPaginationLoader(@Nullable PaginationLoader loader) {
         this.loader = loader;
 
         if (loader != null) {
             initItemsPerPageOptions();
             initMaxResultValue();
+        } else {
+            itemsPerPageSelect.setItems(new ListDataProvider<>(Collections.emptyList()));
         }
     }
 
-    protected void initItemsPerPageOptions() {
-        Preconditions.checkNotNullArgument(loader); // todo rp
+    /**
+     * Adds listener to handle items per page value change event.
+     *
+     * @param listener listener to add
+     * @return a registration object for removing an event listener
+     */
+    public Registration addItemsPerPageValueChangeListener(
+            ValueChangeListener<ComponentValueChangeEvent<Select<Integer>, Integer>> listener) {
+        return itemsPerPageSelect.addValueChangeListener(listener);
+    }
 
+    /**
+     * @return current items count for page
+     */
+    protected int getItemsPerPageValue() {
+        if (isItemsPerPageVisible()) {
+            Integer value = itemsPerPageSelect.getValue();
+            return value != null ? value : getEntityMaxFetchSize(loader.getEntityMetaClass());
+        } else {
+            return getDefaultItemValue(processedItems, loader.getEntityMetaClass());
+        }
+    }
+
+    protected void setItemsPerPageValue(@Nullable Integer value) {
+        itemsPerPageSelect.setValue(value);
+    }
+
+    protected void initItemsPerPageOptions() {
         if (CollectionUtils.isNotEmpty(itemsPerPageItems)) {
             processedItems = processOptions(itemsPerPageItems, loader.getEntityMetaClass());
         } else {
@@ -92,14 +129,12 @@ public class ItemsPerPage extends JmixItemsPerPage implements ApplicationContext
      * Setup MaxResult value to data binder and to items per page ComboBox if it's visible.
      */
     protected void initMaxResultValue() {
-        Preconditions.checkNotNullArgument(loader); // todo rp
-
-        Integer optionValue = getDefaultOptionValue(processedItems, loader.getEntityMetaClass());
+        Integer itemValue = getDefaultItemValue(processedItems, loader.getEntityMetaClass());
 
         if (isItemsPerPageVisible()) {
-            itemsPerPageSelect.setValue(optionValue);
+            itemsPerPageSelect.setValue(itemValue);
         }
-        loader.setMaxResults(optionValue);
+        loader.setMaxResults(itemValue);
     }
 
     /**
@@ -137,13 +172,13 @@ public class ItemsPerPage extends JmixItemsPerPage implements ApplicationContext
         return flowuiProperties.getEntityPageSize(metaClass.getName());
     }
 
-    protected Integer getDefaultOptionValue(List<Integer> options, MetaClass metaClass) {
+    protected Integer getDefaultItemValue(List<Integer> options, MetaClass metaClass) {
         int defaultValue = itemsPerPageDefaultValue != null
                 ? itemsPerPageDefaultValue
                 : getEntityPageSize(metaClass);
 
         boolean shouldFindInOptions = isItemsPerPageVisible()
-                || CollectionUtils.isNotEmpty(itemsPerPageItems); // options are explicitly set
+                || CollectionUtils.isNotEmpty(itemsPerPageItems); // items are explicitly set
         return shouldFindInOptions
                 ? findClosestValue(defaultValue, options)
                 : defaultValue;

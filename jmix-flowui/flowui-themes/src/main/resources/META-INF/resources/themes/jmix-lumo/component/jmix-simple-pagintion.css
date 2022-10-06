@@ -15,5 +15,22 @@
  */
 
 .jmix-simple-pagination {
+    align-items: center;
     display: flex;
+}
+
+.jmix-simple-pagination-status-bar {
+    margin: 0 var(--jmix-simple-pagination-gap);
+    display: flex;
+    gap: var(--jmix-simple-pagination-gap);
+}
+
+.jmix-simple-pagination .jmix-items-per-page {
+    margin-left: var(--jmix-simple-pagination-gap);
+    gap: var(--jmix-simple-pagination-gap);
+}
+
+.jmix-simple-pagination-total-count.link {
+    color: var(--lumo-primary-text-color);
+    cursor: pointer;
 }

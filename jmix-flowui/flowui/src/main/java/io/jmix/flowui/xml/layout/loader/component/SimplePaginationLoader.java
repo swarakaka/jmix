@@ -42,9 +42,8 @@ public class SimplePaginationLoader extends AbstractComponentLoader<SimplePagina
     public void loadComponent() {
         componentLoader().loadClassName(resultComponent, element);
 
-        loadBoolean(element, "autoLoad", resultComponent::setAutoLoad);
         loadBoolean(element, "itemsPerPageUnlimitedOptionVisible",
-                resultComponent::setItemsPerPageUnlimitedOptionVisible);
+                resultComponent::setItemsPerPageUnlimitedItemVisible);
         loadInteger(element, "itemsPerPageDefaultValue", resultComponent::setItemsPerPageDefaultValue);
 
         loadResourceString(element, "itemsPerPageItems", context.getMessageGroup())

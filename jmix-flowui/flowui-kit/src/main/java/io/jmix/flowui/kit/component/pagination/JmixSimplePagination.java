@@ -17,18 +17,24 @@
 package io.jmix.flowui.kit.component.pagination;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.icon.VaadinIcon;
 
 public class JmixSimplePagination extends AbstractPagination {
 
     public static final String SIMPLE_PAGINATION_CLASS_NAME = "jmix-simple-pagination";
 
-    public static final String STATUS_SPAN_CLASS_NAME = "-status";
-    public static final String TOTAL_COUNT_SPAN_CLASS_NAME = "-total-count";
+    public static final String STATUS_BAR_CLASS_NAME = SIMPLE_PAGINATION_CLASS_NAME + "-status-bar";
+    public static final String STATUS_SPAN_CLASS_NAME = SIMPLE_PAGINATION_CLASS_NAME + "-status";
+    public static final String TOTAL_COUNT_SPAN_CLASS_NAME = SIMPLE_PAGINATION_CLASS_NAME + "-total-count";
 
-    protected Div container;
-    protected Span statusSpan;
+    public static final String ROWS_STATUS_LINK_CLASS_NAME = "link";
+
+    protected Div statusBar;
+    protected Span rowsStatusSpan;
     protected Span totalCountSpan;
 
     protected boolean autoLoad = false;
@@ -45,30 +51,14 @@ public class JmixSimplePagination extends AbstractPagination {
     }
 
     @Override
-    protected Component createInnerComponent() {
-        container = createContainer();
-        statusSpan = createStatusSpan();
+    protected Component createInnerBar() {
+        statusBar = createStatusBar();
+        rowsStatusSpan = createStatusSpan();
         totalCountSpan = createTotalCountSpan();
 
-        container.add(statusSpan, totalCountSpan);
+        statusBar.add(rowsStatusSpan, totalCountSpan);
 
-        return container;
-    }
-
-    /**
-     *
-     * @return
-     */
-    public boolean isAutoLoad() {
-        return autoLoad;
-    }
-
-    /**
-     *
-     * @param autoLoad
-     */
-    public void setAutoLoad(boolean autoLoad) {
-        this.autoLoad = autoLoad;
+        return statusBar;
     }
 
     protected Span createStatusSpan() {
@@ -83,7 +73,24 @@ public class JmixSimplePagination extends AbstractPagination {
         return totalCountSpan;
     }
 
-    protected Div createContainer() {
-        return new Div();
+    protected Div createStatusBar() {
+        Div statusBar = new Div();
+        statusBar.addClassName(STATUS_BAR_CLASS_NAME);
+        return statusBar;
+    }
+
+    @Override
+    protected Button createNavigationButton(String additionalClassName, VaadinIcon icon) {
+        Button button = super.createNavigationButton(additionalClassName, icon);
+        button.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        return button;
+    }
+
+    protected Span getRowsStatusLabel() {
+        return rowsStatusSpan;
+    }
+
+    protected Span getTotalCountLabel() {
+        return totalCountSpan;
     }
 }

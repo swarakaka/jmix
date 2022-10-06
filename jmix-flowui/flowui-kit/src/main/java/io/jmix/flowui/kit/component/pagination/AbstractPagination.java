@@ -20,7 +20,6 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Composite;
 import com.vaadin.flow.component.HasStyle;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -39,7 +38,7 @@ public abstract class AbstractPagination extends Composite<Div> implements HasSt
     protected JmixItemsPerPage jmixRowsPerPage;
 
     protected Button firstButton;
-    protected Button prevButton;
+    protected Button previousButton;
     protected Button nextButton;
     protected Button lastButton;
 
@@ -55,14 +54,14 @@ public abstract class AbstractPagination extends Composite<Div> implements HasSt
 
         initNavigationButtons();
 
-        Component innerComponent = createInnerComponent();
+        Component innerComponent = createInnerBar();
 
-        content.add(firstButton, prevButton, innerComponent, nextButton, lastButton);
+        content.add(firstButton, previousButton, innerComponent, nextButton, lastButton);
 
         return content;
     }
 
-    protected abstract Component createInnerComponent();
+    protected abstract Component createInnerBar();
 
     @Nullable
     protected JmixItemsPerPage getJmixRowsPerPage() {
@@ -83,7 +82,7 @@ public abstract class AbstractPagination extends Composite<Div> implements HasSt
 
     protected void initNavigationButtons() {
         firstButton = createNavigationButton(FIRST_BUTTON_CLASS_NAME, VaadinIcon.ANGLE_DOUBLE_LEFT);
-        prevButton = createNavigationButton(PREV_BUTTON_CLASS_NAME, VaadinIcon.ANGLE_LEFT);
+        previousButton = createNavigationButton(PREV_BUTTON_CLASS_NAME, VaadinIcon.ANGLE_LEFT);
         nextButton = createNavigationButton(NEXT_BUTTON_CLASS_NAME, VaadinIcon.ANGLE_RIGHT);
         lastButton = createNavigationButton(LAST_BUTTON_CLASS_NAME, VaadinIcon.ANGLE_DOUBLE_RIGHT);
     }
@@ -91,7 +90,6 @@ public abstract class AbstractPagination extends Composite<Div> implements HasSt
     protected Button createNavigationButton(String additionalClassName, VaadinIcon icon) {
         Button button = new Button();
         button.setIcon(new Icon(icon));
-        button.addThemeVariants(ButtonVariant.LUMO_SMALL);
         button.addClassNames(componentBaseClassName + BASE_BUTTON_CLASS_NAME, additionalClassName);
         return button;
     }
