@@ -56,9 +56,9 @@ public interface StudioElementsGroups {
 
     @StudioElementsGroup(
             name = "Items",
-            elementClassFqn = "io.jmix.flowui.kit.component.dropdownbutton.BaseDropdownButtonItem",
+            elementClassFqn = "io.jmix.flowui.kit.component.dropdownbutton.DropdownButtonItem",
             xmlElement = "items",
-            target = {"io.jmix.flowui.component.dropdownbutton.DropdownButton"}
+            target = {"io.jmix.flowui.kit.component.dropdownbutton.DropdownButton"}
     )
     void items();
 }

@@ -163,7 +163,6 @@ class ComponentXmlLoadTest extends FlowuiTestSpecification {
             height == "50px"
             icon.element.getAttribute("icon") ==
                     VaadinIcon.GAMEPAD.create().element.getAttribute("icon")
-            iconAfterText
             maxHeight == "55px"
             maxWidth == "120px"
             minHeight == "40px"

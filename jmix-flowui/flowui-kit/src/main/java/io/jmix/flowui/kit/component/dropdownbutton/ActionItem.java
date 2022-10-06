@@ -17,82 +17,37 @@
 package io.jmix.flowui.kit.component.dropdownbutton;
 
 import com.vaadin.flow.component.ClickEvent;
-import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.KeyModifier;
 import com.vaadin.flow.component.ShortcutRegistration;
 import com.vaadin.flow.component.contextmenu.MenuItem;
+import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.shared.Registration;
-import io.jmix.flowui.kit.action.Action;
+import io.jmix.flowui.kit.component.HasAction;
 
 import javax.annotation.Nullable;
 
-public class ActionItem extends BaseDropdownButtonItem {
+public interface ActionItem extends DropdownButtonItem, HasAction {
 
-    protected Action action;
-    protected Component iconComponent;
+    void setText(String text);
 
-    public ActionItem() {
-    }
+    String getText();
 
-    public ActionItem(@Nullable Action action) {
-        this.action = action;
-    }
+    void setIcon(Icon icon);
 
     @Nullable
-    public Action getAction() {
-        return action;
-    }
+    Icon getIcon();
 
-    public void setText(@Nullable String text) {
-        if (iconComponent != null) {
-            item.setText(text);
-            setIcon(iconComponent);
-        }
-    }
-
-    public String getTest() {
-        return item.getText();
-    }
-
-    public void setIcon(@Nullable Component icon) {
-        if (icon != null && icon.getElement().isTextNode()) {
-            throw new IllegalArgumentException(
-                    "Text node can't be used as an icon.");
-        }
-        if (iconComponent != null) {
-            item.remove(iconComponent);
-        }
-        iconComponent = icon;
-        if (icon != null) {
-            item.add(iconComponent);
-        }
-        updateThemeAttribute();
-    }
-
-    @Nullable
-    public Component getIcon() {
-        return iconComponent;
-    }
-
-    private void updateThemeAttribute() {
-        if (iconComponent != null) {
-            item.addThemeNames("icon");
-        } else {
-            item.removeThemeNames("icon");
-        }
+    @Override
+    default Registration addClickListener(ComponentEventListener<ClickEvent<MenuItem>> listener) {
+        throw new UnsupportedOperationException(String.format(
+                "Unable to add a ClickListener to actionItem '%s'", getId() != null ? getId() : "null"));
     }
 
     @Override
-    public Registration addClickListener(ComponentEventListener<ClickEvent<MenuItem>> listener) {
+    default ShortcutRegistration addClickShortcut(Key key, KeyModifier... keyModifiers) {
         throw new UnsupportedOperationException(String.format(
-                "Unable to add a ClickListener to actionItem '%s'", this.id != null ? this.id : "null"));
-    }
-
-    @Override
-    public ShortcutRegistration addClickShortcut(Key key, KeyModifier... keyModifiers) {
-        throw new UnsupportedOperationException(String.format(
-                "Unable to add a ClickShortcut to actionItem '%s'", this.id != null ? this.id : "null"));
+                "Unable to add a ClickShortcut to actionItem '%s'", getId() != null ? getId() : "null"));
     }
 }

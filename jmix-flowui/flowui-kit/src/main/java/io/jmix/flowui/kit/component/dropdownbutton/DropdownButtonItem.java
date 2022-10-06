@@ -25,8 +25,7 @@ import javax.annotation.Nullable;
 
 public interface DropdownButtonItem extends ClickNotifier<MenuItem> {
 
-
-    void setParent(Component parent);
+    void setParent(DropdownButton parent);
 
     void setId(@Nullable String id);
 
@@ -34,4 +33,12 @@ public interface DropdownButtonItem extends ClickNotifier<MenuItem> {
 
     @Nullable
     String getId();
+
+    void setVisible(boolean visible);
+
+    void setEnabled(boolean enabled);
+
+    boolean isVisible();
+
+    boolean isEnabled();
 }

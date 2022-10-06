@@ -17,12 +17,10 @@
 package io.jmix.flowui.xml.layout.loader.component;
 
 import com.vaadin.flow.component.Component;
-import io.jmix.flowui.component.dropdownbutton.DropdownButton;
 import io.jmix.flowui.exception.GuiDevelopmentException;
 import io.jmix.flowui.kit.action.Action;
-import io.jmix.flowui.kit.component.dropdownbutton.ActionItem;
-import io.jmix.flowui.kit.component.dropdownbutton.ComponentItem;
-import io.jmix.flowui.kit.component.dropdownbutton.TextItem;
+import io.jmix.flowui.kit.component.dropdownbutton.DropdownButton;
+import io.jmix.flowui.kit.component.dropdownbutton.DropdownButtonItem;
 import io.jmix.flowui.xml.layout.ComponentLoader;
 import io.jmix.flowui.xml.layout.inittask.AssignDropdownButtonActionInitTask;
 import io.jmix.flowui.xml.layout.loader.AbstractComponentLoader;
@@ -42,7 +40,6 @@ public class DropdownButtonLoader extends AbstractComponentLoader<DropdownButton
     @Override
     public void loadComponent() {
         loadBoolean(element, "openOnHover", resultComponent::setOpenOnHover);
-        loadBoolean(element, "iconAfterText", resultComponent::setIconAfterText);
 
         componentLoader().loadSizeAttributes(resultComponent, element);
         componentLoader().loadTitle(resultComponent, element, context);
@@ -62,67 +59,80 @@ public class DropdownButtonLoader extends AbstractComponentLoader<DropdownButton
     }
 
     protected void loadItem(Element element) {
-        if ("actionItem".equals(element.getName())) {
-            loadActionItem(element);
-        } else if ("componentItem".equals(element.getName())) {
-            loadComponentItem(element);
-        } else if ("textItem".equals(element.getName())) {
-            loadTextItem(element);
-        } else if ("separator".equals(element.getName())) {
-            loadSeparator();
-        } else {
-            throw new GuiDevelopmentException("Unexpected dropdownButtonItem", context);
+        switch (element.getName()) {
+            case "actionItem":
+                loadActionItem(element);
+                break;
+            case "componentItem":
+                loadComponentItem(element);
+                break;
+            case "textItem":
+                loadTextItem(element);
+                break;
+            case "separator":
+                loadSeparator();
+                break;
+            default:
+                throw new GuiDevelopmentException("Unexpected dropdownButtonItem", context);
         }
     }
 
     protected void loadActionItem(Element element) {
         String id = getLoaderSupport().loadString(element, "id")
-                .orElse(null);
-        ActionItem actionItem;
+                .orElseThrow(() -> new GuiDevelopmentException("No item ID provided", context));
 
         String ref = element.attributeValue("ref");
         Element actionElement = element.element("action");
+
         if (actionElement != null) {
             Action action = getActionLoaderSupport().loadDeclarativeAction(actionElement);
-            actionItem = (ActionItem) resultComponent.addItem(action);
-            actionItem.setId(id);
+            resultComponent.addItem(action, id);
         } else if (ref != null) {
-            getComponentContext().addInitTask(
-                    new AssignDropdownButtonActionInitTask(resultComponent, ref, id, getComponentContext().getView())
+            int index = element.getParent().elements().indexOf(element);
+
+            AssignDropdownButtonActionInitTask initTask = new AssignDropdownButtonActionInitTask(
+                    resultComponent,
+                    ref,
+                    id,
+                    index,
+                    getComponentContext().getView()
             );
+            getComponentContext().addInitTask(initTask);
+        } else {
+            throw new GuiDevelopmentException(String.format("No action for '%s' actionItem", id), context);
         }
     }
 
     protected void loadComponentItem(Element element) {
         String id = getLoaderSupport().loadString(element, "id")
-                .orElse(null);
-        Component content = null;
+                .orElseThrow(() -> new GuiDevelopmentException("No item ID provided", context));
 
         Element subElement = element.elements().stream()
                 .findFirst()
-                .orElse(null);
+                .orElseThrow(() ->
+                        new GuiDevelopmentException(
+                                String.format("No content for '%s' componentItem", id),
+                                context)
+                );
 
-        if (subElement != null) {
-            LayoutLoader loader = getLayoutLoader();
-            ComponentLoader<?> componentLoader = loader.createComponentLoader(subElement);
-            componentLoader.initComponent();
-            componentLoader.loadComponent();
+        LayoutLoader loader = getLayoutLoader();
+        ComponentLoader<?> componentLoader = loader.createComponentLoader(subElement);
+        componentLoader.initComponent();
+        componentLoader.loadComponent();
 
-            content = componentLoader.getResultComponent();
-        }
+        Component content = componentLoader.getResultComponent();
 
-        ComponentItem componentItem = (ComponentItem) resultComponent.addItem(content);
+        DropdownButtonItem componentItem = resultComponent.addItem(content, id);
         componentItem.setId(id);
     }
 
     protected void loadTextItem(Element element) {
         String id = getLoaderSupport().loadString(element, "id")
-                .orElse(null);
+                .orElseThrow(() -> new GuiDevelopmentException("No item ID provided", context));
         String text = getLoaderSupport().loadResourceString(element, "text", context.getMessageGroup())
                 .orElse(null);
 
-        TextItem textItem = (TextItem) resultComponent.addItem(text);
-        textItem.setId(id);
+        resultComponent.addItem(text, id);
     }
 
     protected void loadSeparator() {

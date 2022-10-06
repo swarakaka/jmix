@@ -622,7 +622,6 @@
                         enabled="true"
                         height="50px"
                         icon="GAMEPAD"
-                        iconAfterText="true"
                         maxHeight="55px"
                         maxWidth="120px"
                         minHeight="40px"

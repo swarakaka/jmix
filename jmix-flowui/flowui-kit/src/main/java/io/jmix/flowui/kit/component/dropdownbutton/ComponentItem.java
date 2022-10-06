@@ -16,44 +16,11 @@
 
 package io.jmix.flowui.kit.component.dropdownbutton;
 
-import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.ComponentEventListener;
-import com.vaadin.flow.component.Key;
-import com.vaadin.flow.component.KeyModifier;
-import com.vaadin.flow.component.ShortcutRegistration;
-import com.vaadin.flow.component.contextmenu.MenuItem;
-import com.vaadin.flow.shared.Registration;
 
-import javax.annotation.Nullable;
+public interface ComponentItem extends DropdownButtonItem {
 
-public class ComponentItem extends BaseDropdownButtonItem {
+    void setContent(Component content);
 
-    protected Component content;
-
-    public ComponentItem() {
-    }
-
-    public ComponentItem(@Nullable Component content) {
-        this.content = content;
-    }
-
-    public void setContent(@Nullable Component content) {
-        this.content = content;
-    }
-
-    @Nullable
-    public Component getContent() {
-        return content;
-    }
-
-    @Override
-    public Registration addClickListener(ComponentEventListener<ClickEvent<MenuItem>> listener) {
-        return item.addClickListener(listener);
-    }
-
-    @Override
-    public ShortcutRegistration addClickShortcut(Key key, KeyModifier... keyModifiers) {
-        return item.addClickShortcut(key, keyModifiers);
-    }
+    Component getContent();
 }

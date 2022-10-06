@@ -16,23 +16,23 @@
 
 package io.jmix.flowui.xml.layout.inittask;
 
-import io.jmix.flowui.component.dropdownbutton.DropdownButton;
-import io.jmix.flowui.kit.component.dropdownbutton.DropdownButtonItem;
 import io.jmix.flowui.kit.action.Action;
+import io.jmix.flowui.kit.component.dropdownbutton.DropdownButton;
 import io.jmix.flowui.view.View;
 import io.jmix.flowui.xml.layout.ComponentLoader;
-
-import javax.annotation.Nullable;
 
 public class AssignDropdownButtonActionInitTask extends AbstractAssignActionInitTask<DropdownButton> {
 
     protected String id;
+    protected int index;
 
     public AssignDropdownButtonActionInitTask(DropdownButton component,
                                               String actionId,
-                                              @Nullable String actionItemId,
+                                              String actionItemId,
+                                              int index,
                                               View<?> view) {
         super(component, actionId, view);
+        this.index = index;
         this.id = actionItemId;
     }
 
@@ -43,7 +43,6 @@ public class AssignDropdownButtonActionInitTask extends AbstractAssignActionInit
 
     @Override
     protected void addAction(ComponentLoader.ComponentContext context, Action action) {
-        DropdownButtonItem dropdownButtonItem = component.addItem(action);
-        dropdownButtonItem.setId(id);
+        component.addItem(action, id, index);
     }
 }

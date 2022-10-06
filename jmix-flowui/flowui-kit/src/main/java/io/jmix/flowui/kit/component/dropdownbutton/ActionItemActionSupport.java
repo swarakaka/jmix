@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.jmix.flowui.component.dropdownbutton;
+package io.jmix.flowui.kit.component.dropdownbutton;
 
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.contextmenu.MenuItem;
