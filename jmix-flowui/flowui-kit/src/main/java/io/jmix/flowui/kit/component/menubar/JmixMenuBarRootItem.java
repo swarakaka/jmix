@@ -23,40 +23,25 @@ class JmixMenuBarRootItem extends JmixMenuItem {
 
     protected JmixMenuBar menuBar;
 
-    JmixMenuBarRootItem(JmixMenuBar menuBar, SerializableRunnable contentReset) {
+    JmixMenuBarRootItem(MenuBar menuBar, SerializableRunnable contentReset) {
         super(null, contentReset);
-        this.menuBar = menuBar;
+        this.menuBar = (JmixMenuBar) menuBar;
     }
 
     @Override
     public void setCheckable(boolean checkable) {
         if (checkable) {
-            throw new UnsupportedOperationException(
-                    "A root level item in a MenuBar can not be checkable");
+            throw new UnsupportedOperationException(String.format(
+                    "A root level item in a '%s' can not be checkable", menuBar.getClass().getSimpleName()));
         }
     }
 
-    /**
-     * Adds one or more theme names to this item. Multiple theme names can be
-     * specified by using multiple parameters.
-     * <p>
-     * Note that the themes set via {@link MenuBar#setThemeName(String)} will be
-     * overridden when using this method.
-     *
-     * @param themeNames the theme name or theme names to be added to the item
-     */
     @Override
     public void addThemeNames(String... themeNames) {
         super.addThemeNames(themeNames);
         menuBar.updateButtons();
     }
 
-    /**
-     * Removes one or more theme names from this item. Multiple theme names can
-     * be specified by using multiple parameters.
-     *
-     * @param themeNames the theme name or theme names to be removed from the item
-     */
     @Override
     public void removeThemeNames(String... themeNames) {
         super.removeThemeNames(themeNames);

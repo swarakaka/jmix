@@ -16,19 +16,23 @@
 
 package io.jmix.flowui.kit.component.menubar;
 
-import com.vaadin.flow.component.ClickNotifier;
-import com.vaadin.flow.component.contextmenu.MenuItemBase;
+import com.vaadin.flow.component.contextmenu.ContextMenu;
+import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.function.SerializableRunnable;
 
-public class JmixMenuItem extends MenuItemBase<JmixContextMenu, JmixMenuItem, JmixSubMenu>
-        implements ClickNotifier<JmixMenuItem> {
+public class JmixMenuItem extends MenuItem {
 
     protected final SerializableRunnable contentReset;
 
-    public JmixMenuItem(JmixContextMenu contextMenu,
+    public JmixMenuItem(ContextMenu contextMenu,
                         SerializableRunnable contentReset) {
-        super(contextMenu);
+        super(contextMenu, contentReset);
         this.contentReset = contentReset;
+    }
+
+    @Override
+    public JmixSubMenu getSubMenu() {
+        return (JmixSubMenu) super.getSubMenu();
     }
 
     @Override

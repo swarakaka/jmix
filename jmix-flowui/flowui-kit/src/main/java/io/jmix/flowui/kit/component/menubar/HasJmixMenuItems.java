@@ -19,24 +19,19 @@ package io.jmix.flowui.kit.component.menubar;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.ComponentEventListener;
+import com.vaadin.flow.component.contextmenu.MenuItem;
 
 import java.io.Serializable;
 
 public interface HasJmixMenuItems extends Serializable {
-
-    JmixMenuItem addItem(String text,
-                         ComponentEventListener<ClickEvent<JmixMenuItem>> clickListener);
-
-    JmixMenuItem addItem(Component component,
-                         ComponentEventListener<ClickEvent<JmixMenuItem>> clickListener);
 
     JmixMenuItem addItemAtIndex(int index, String text);
 
     JmixMenuItem addItemAtIndex(int index, Component component);
 
     JmixMenuItem addItemAtIndex(int index, String text,
-                         ComponentEventListener<ClickEvent<JmixMenuItem>> clickListener);
+                                ComponentEventListener<ClickEvent<MenuItem>> clickListener);
 
     JmixMenuItem addItemAtIndex(int index, Component component,
-                         ComponentEventListener<ClickEvent<JmixMenuItem>> clickListener);
+                                ComponentEventListener<ClickEvent<MenuItem>> clickListener);
 }

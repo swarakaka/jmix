@@ -22,7 +22,6 @@ import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Hr;
 import com.vaadin.flow.component.icon.Icon;
-import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.component.menubar.MenuBarVariant;
 import com.vaadin.flow.dom.ClassList;
 import com.vaadin.flow.dom.ThemeList;
@@ -30,6 +29,8 @@ import com.vaadin.flow.shared.Registration;
 import io.jmix.flowui.kit.action.Action;
 import io.jmix.flowui.kit.component.HasTitle;
 import io.jmix.flowui.kit.component.KeyCombination;
+import io.jmix.flowui.kit.component.menubar.JmixMenuBar;
+import io.jmix.flowui.kit.component.menubar.JmixMenuItem;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -39,20 +40,20 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public class DropdownButton extends Composite<MenuBar>
+public class DropdownButton extends Composite<JmixMenuBar>
         implements AttachNotifier, DetachNotifier, HasTitle, HasSize,
         HasTheme, HasEnabled, HasStyle, HasText {
 
     protected boolean explicitTitle = false;
     protected List<HasMenuItem> items = new ArrayList<>();
 
-    protected MenuItem rootItem;
+    protected JmixMenuItem rootItem;
     protected Icon dropdownIcon = new Icon("lumo", "dropdown");
     protected Icon iconComponent;
 
     @Override
-    protected MenuBar initContent() {
-        MenuBar menuBar = super.initContent();
+    protected JmixMenuBar initContent() {
+        JmixMenuBar menuBar = super.initContent();
         rootItem = menuBar.addItem(new Button());
 
         rootItem.addThemeNames("icon");
@@ -61,7 +62,7 @@ public class DropdownButton extends Composite<MenuBar>
         return menuBar;
     }
 
-    protected MenuItem getRootItem() {
+    protected JmixMenuItem getRootItem() {
         if (rootItem == null) {
             // root item will be initialized
             getContent();
@@ -83,8 +84,7 @@ public class DropdownButton extends Composite<MenuBar>
 
         MenuItem menuItem = index < 0
                 ? getRootItem().getSubMenu().addItem(actionLayout)
-                : getRootItem().getSubMenu().addItem(actionLayout);
-//                getRootItem().getSubMenu().addItemAtIndex(index, actionLayout);
+                : getRootItem().getSubMenu().addItemAtIndex(index, actionLayout);
 
         actionItem.setItem(menuItem);
         actionItem.setActionLayout(actionLayout);

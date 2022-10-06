@@ -19,35 +19,22 @@ package io.jmix.flowui.kit.component.menubar;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.ComponentEventListener;
-import com.vaadin.flow.component.HasEnabled;
-import com.vaadin.flow.component.HasSize;
-import com.vaadin.flow.component.HasStyle;
-import com.vaadin.flow.component.HasTheme;
-import com.vaadin.flow.component.Tag;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.contextmenu.MenuItemsArrayGenerator;
-import com.vaadin.flow.component.dependency.JsModule;
-import com.vaadin.flow.component.dependency.NpmPackage;
-import com.vaadin.flow.component.menubar.MenuBarVariant;
+import com.vaadin.flow.component.contextmenu.SubMenu;
+import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.function.SerializableConsumer;
 import io.jmix.flowui.kit.component.contextmenu.JmixMenuManager;
 
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-@Tag("jmix-menu-bar")
-@NpmPackage(value = "@vaadin/polymer-legacy-adapter", version = "23.1.6")
-@JsModule("@vaadin/polymer-legacy-adapter/style-modules.js")
-@JsModule("./menubarConnector.js")
-@JsModule("@vaadin/menu-bar/src/vaadin-menu-bar.js")
-@NpmPackage(value = "@vaadin/menu-bar", version = "23.1.6")
-@NpmPackage(value = "@vaadin/vaadin-menu-bar", version = "23.1.6")
-public class JmixMenuBar extends Component
-        implements HasJmixMenuItems, HasSize, HasStyle, HasTheme, HasEnabled {
+public class JmixMenuBar extends MenuBar
+        implements HasJmixMenuItems {
 
-    protected JmixMenuManager<JmixMenuBar, JmixMenuItem, JmixSubMenu> menuManager;
-    protected MenuItemsArrayGenerator<JmixMenuItem> menuItemsArrayGenerator;
+    protected JmixMenuManager<MenuBar, MenuItem, SubMenu> menuManager;
+    protected MenuItemsArrayGenerator<MenuItem> menuItemsArrayGenerator;
 
     protected boolean updateScheduled = false;
 
@@ -56,7 +43,7 @@ public class JmixMenuBar extends Component
 
         menuManager = new JmixMenuManager<>(this, this::resetContent,
                 (menu, contentReset) -> new JmixMenuBarRootItem(this, contentReset),
-                JmixMenuItem.class, null);
+                MenuItem.class, null);
 
         addAttachListener(event -> {
             String appId = event.getUI().getInternals().getAppId();
@@ -66,53 +53,55 @@ public class JmixMenuBar extends Component
     }
 
     public JmixMenuItem addItem(String text) {
-        return menuManager.addItem(text);
+        return (JmixMenuItem) menuManager.addItem(text);
     }
 
     public JmixMenuItem addItem(Component component) {
-        return menuManager.addItem(component);
+        return (JmixMenuItem) menuManager.addItem(component);
     }
 
     @Override
     public JmixMenuItem addItem(String text,
-                                ComponentEventListener<ClickEvent<JmixMenuItem>> clickListener) {
-        return menuManager.addItem(text, clickListener);
+                                ComponentEventListener<ClickEvent<MenuItem>> clickListener) {
+        return (JmixMenuItem) menuManager.addItem(text, clickListener);
     }
 
-    @Override
     public JmixMenuItem addItem(Component component,
-                                ComponentEventListener<ClickEvent<JmixMenuItem>> clickListener) {
-        return menuManager.addItem(component, clickListener);
+                                ComponentEventListener<ClickEvent<MenuItem>> clickListener) {
+        return (JmixMenuItem) menuManager.addItem(component, clickListener);
     }
 
     public JmixMenuItem addItemAtIndex(int index, String text) {
-        return menuManager.addItemAtIndex(index, text);
+        return (JmixMenuItem) menuManager.addItemAtIndex(index, text);
     }
 
     public JmixMenuItem addItemAtIndex(int index, Component component) {
-        return menuManager.addItemAtIndex(index, component);
+        return (JmixMenuItem) menuManager.addItemAtIndex(index, component);
     }
 
     @Override
     public JmixMenuItem addItemAtIndex(int index, String text,
-                                       ComponentEventListener<ClickEvent<JmixMenuItem>> clickListener) {
-        return menuManager.addItemAtIndex(index, text, clickListener);
+                                       ComponentEventListener<ClickEvent<MenuItem>> clickListener) {
+        return (JmixMenuItem) menuManager.addItemAtIndex(index, text, clickListener);
     }
 
     @Override
     public JmixMenuItem addItemAtIndex(int index, Component component,
-                                       ComponentEventListener<ClickEvent<JmixMenuItem>> clickListener) {
-        return menuManager.addItemAtIndex(index, component, clickListener);
+                                       ComponentEventListener<ClickEvent<MenuItem>> clickListener) {
+        return (JmixMenuItem) menuManager.addItemAtIndex(index, component, clickListener);
     }
 
-    public List<JmixMenuItem> getItems() {
+    @Override
+    public List<MenuItem> getItems() {
         return menuManager.getItems();
     }
 
-    public void remove(JmixMenuItem... items) {
+    @Override
+    public void remove(MenuItem... items) {
         menuManager.remove(items);
     }
 
+    @Override
     public void removeAll() {
         menuManager.removeAll();
     }
@@ -120,38 +109,6 @@ public class JmixMenuBar extends Component
     @Override
     public Stream<Component> getChildren() {
         return menuManager.getChildren();
-    }
-
-    public void setOpenOnHover(boolean openOnHover) {
-        getElement().setProperty("openOnHover", openOnHover);
-    }
-
-    public boolean isOpenOnHover() {
-        return getElement().getProperty("openOnHover", false);
-    }
-
-    /**
-     * Adds theme variants to the component.
-     *
-     * @param variants
-     *            theme variants to add
-     */
-    public void addThemeVariants(MenuBarVariant... variants) {
-        getThemeNames()
-                .addAll(Stream.of(variants).map(MenuBarVariant::getVariantName)
-                        .collect(Collectors.toList()));
-    }
-
-    /**
-     * Removes theme variants from the component.
-     *
-     * @param variants
-     *            theme variants to remove
-     */
-    public void removeThemeVariants(MenuBarVariant... variants) {
-        Stream.of(variants).map(MenuBarVariant::getVariantName)
-                .collect(Collectors.toList()).forEach(
-                        getThemeNames()::remove);
     }
 
     void resetContent() {
