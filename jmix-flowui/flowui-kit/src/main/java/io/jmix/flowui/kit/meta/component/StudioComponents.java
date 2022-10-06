@@ -23,7 +23,6 @@ import com.vaadin.flow.component.checkbox.CheckboxGroup;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.datetimepicker.DateTimePicker;
-import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.select.Select;
@@ -38,6 +37,7 @@ import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.kit.component.combobox.ComboBoxPicker;
 import io.jmix.flowui.kit.component.grid.JmixGrid;
 import io.jmix.flowui.kit.component.grid.JmixTreeGrid;
+import io.jmix.flowui.kit.component.menubar.JmixMenuBar;
 import io.jmix.flowui.kit.component.valuepicker.ValuePicker;
 import io.jmix.flowui.kit.component.valuepicker.ValuesPicker;
 import io.jmix.flowui.kit.meta.StudioComponent;
@@ -381,7 +381,7 @@ public interface StudioComponents {
                     @StudioProperty(xmlAttribute = "width", type = StudioPropertyType.SIZE)
             }
     )
-    MenuBar dropdownButton();
+    JmixMenuBar dropdownButton();
 
     @StudioComponent(
             name = "ComboBoxPicker",
