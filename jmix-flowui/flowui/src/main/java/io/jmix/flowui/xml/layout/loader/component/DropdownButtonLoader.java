@@ -43,8 +43,8 @@ public class DropdownButtonLoader extends AbstractComponentLoader<DropdownButton
 
         componentLoader().loadSizeAttributes(resultComponent, element);
         componentLoader().loadTitle(resultComponent, element, context);
-        componentLoader().loadClassName(resultComponent, element);
-        componentLoader().loadThemeName(resultComponent, element);
+        componentLoader().loadClassNames(resultComponent, element);
+        componentLoader().loadThemeNames(resultComponent, element);
         componentLoader().loadEnabled(resultComponent, element);
         componentLoader().loadText(resultComponent, element);
         componentLoader().loadWhiteSpace(resultComponent, element);

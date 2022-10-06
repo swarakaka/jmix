@@ -353,7 +353,7 @@ public interface StudioComponents {
             xmlElement = "dropdownButton",
             icon = "io/jmix/flowui/kit/meta/icon/component/dropdownButton.svg",
             properties = {
-                    @StudioProperty(xmlAttribute = "className", type = StudioPropertyType.VALUES_LIST),
+                    @StudioProperty(xmlAttribute = "classNames", type = StudioPropertyType.VALUES_LIST),
                     @StudioProperty(xmlAttribute = "enabled", type = StudioPropertyType.BOOLEAN,
                             defaultValue = "true"),
                     @StudioProperty(xmlAttribute = "height", type = StudioPropertyType.SIZE),
@@ -368,7 +368,7 @@ public interface StudioComponents {
                     @StudioProperty(xmlAttribute = "openOnHover", type = StudioPropertyType.BOOLEAN,
                             defaultValue = "false"),
                     @StudioProperty(xmlAttribute = "text", type = StudioPropertyType.LOCALIZED_STRING),
-                    @StudioProperty(xmlAttribute = "themeName", type = StudioPropertyType.VALUES_LIST,
+                    @StudioProperty(xmlAttribute = "themeNames", type = StudioPropertyType.VALUES_LIST,
                             options = {"small", "large", "tertiary-inline", "primary", "contrast",
                                     "icon", "contained", "outlined"}),
                     @StudioProperty(xmlAttribute = "title", type = StudioPropertyType.LOCALIZED_STRING),

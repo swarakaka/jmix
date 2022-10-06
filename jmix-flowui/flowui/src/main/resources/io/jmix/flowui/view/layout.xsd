@@ -2194,7 +2194,7 @@
                 </xs:sequence>
 
                 <xs:attribute name="openOnHover" type="xs:boolean"/>
-                <xs:attribute name="themeName" type="dropdownButtonThemeNames"/>
+                <xs:attribute name="themeNames" type="dropdownButtonThemeNames"/>
                 <xs:attribute name="icon" type="vaadinIconEnum"/>
 
                 <xs:attributeGroup ref="hasSize"/>
