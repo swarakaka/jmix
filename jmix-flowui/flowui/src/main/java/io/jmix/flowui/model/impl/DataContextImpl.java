@@ -21,7 +21,6 @@ import io.jmix.core.*;
 import io.jmix.core.common.event.EventHub;
 import io.jmix.core.common.event.Subscription;
 import io.jmix.core.entity.*;
-import io.jmix.core.impl.StandardSerialization;
 import io.jmix.core.metamodel.datatype.EnumClass;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.metamodel.model.MetaProperty;
@@ -69,7 +68,7 @@ public class DataContextImpl implements DataContextInternal {
     protected EntityReferencesNormalizer entityReferencesNormalizer;
 
     @Autowired
-    protected StandardSerialization standardSerialization;
+    protected Copier copier;
 
     protected EventHub events = new EventHub();
 
@@ -165,11 +164,11 @@ public class DataContextImpl implements DataContextInternal {
     }
 
     @Override
-    public EntitySet merge(Collection entities, MergeOptions options) {
+    public EntitySet merge(Collection<?> entities, MergeOptions options) {
         checkNotNullArgument(entities, "entity collection is null");
         checkNotNullArgument(entities, "options object is null");
 
-        List managedList = new ArrayList<>(entities.size());
+        List<Object> managedList = new ArrayList<>(entities.size());
         disableListeners = true;
         try {
             Map<Object, Object> merged = new IdentityHashMap<>();
@@ -185,7 +184,7 @@ public class DataContextImpl implements DataContextInternal {
     }
 
     @Override
-    public EntitySet merge(Collection entities) {
+    public EntitySet merge(Collection<?> entities) {
         return merge(entities, new MergeOptions());
     }
 
@@ -294,7 +293,7 @@ public class DataContextImpl implements DataContextInternal {
                 }
 
                 if (value == null || !entityStates.isLoaded(dstEntity, propertyName)) {
-                    if (!metadataTools.isEmbedded(property)) {//dstEntity property value will be lazy loaded and replaced by srcEntity property value
+                    if (property.getType() != MetaProperty.Type.EMBEDDED) {//dstEntity property value will be lazy loaded and replaced by srcEntity property value
                         setPropertyValue(dstEntity, property, value);
                     }
                     continue;
@@ -312,7 +311,7 @@ public class DataContextImpl implements DataContextInternal {
                     if (!mergedMap.containsKey(value)) {
                         Object managedRef = internalMerge(value, mergedMap, false, options);
                         setPropertyValue(dstEntity, property, managedRef, false);
-                        if (metadataTools.isEmbedded(property)) {
+                        if (property.getType() == MetaProperty.Type.EMBEDDED) {
                             EmbeddedPropertyChangeListener listener = new EmbeddedPropertyChangeListener(dstEntity);
                             EntitySystemAccess.addPropertyChangeListener(managedRef, listener);
                             embeddedPropertyListeners.computeIfAbsent(dstEntity, e -> new HashMap<>()).put(propertyName, listener);
@@ -329,6 +328,8 @@ public class DataContextImpl implements DataContextInternal {
                 }
             }
         }
+
+        mergeLoadedPropertiesInfo(srcEntity, dstEntity, isRoot, options);
 
         mergeLazyLoadingState(srcEntity, dstEntity);
     }
@@ -373,7 +374,25 @@ public class DataContextImpl implements DataContextInternal {
 
     protected void mergeSystemState(Object srcEntity, Object dstEntity, boolean isRoot, MergeOptions options) {
         if (isRoot || options.isFresh()) {
+            // Preserve the loaded state in the destination entity
+            EntityEntry dstEntityEntry = EntitySystemAccess.getEntityEntry(dstEntity);
+            LoadedPropertiesInfo prevLoadedPropertiesInfo = dstEntityEntry.getLoadedPropertiesInfo();
+
             entitySystemStateSupport.mergeSystemState((Entity) srcEntity, (Entity) dstEntity);
+
+            dstEntityEntry.setLoadedPropertiesInfo(prevLoadedPropertiesInfo);
+        }
+    }
+
+    protected void mergeLoadedPropertiesInfo(Object srcEntity, Object dstEntity, boolean isRoot, MergeOptions options) {
+        if (isRoot || options.isFresh()) {
+            EntityEntry srcEntityEntry = EntitySystemAccess.getEntityEntry(srcEntity);
+            EntityEntry dstEntityEntry = EntitySystemAccess.getEntityEntry(dstEntity);
+            if (srcEntityEntry.getLoadedPropertiesInfo() == null) {
+                dstEntityEntry.setLoadedPropertiesInfo(null);
+            } else {
+                dstEntityEntry.setLoadedPropertiesInfo(srcEntityEntry.getLoadedPropertiesInfo().copy());
+            }
         }
     }
 
@@ -413,7 +432,7 @@ public class DataContextImpl implements DataContextInternal {
             if (managedValue instanceof List) {
                 dstList = (List<Object>) managedValue;
             } else if (managedValue != null) {//any proxy Collection can be returned in case of Collection entity attribute (see Haulmont/jmix-ui#243)
-                dstList = new ArrayList<Object>((Collection) managedValue);
+                dstList = new ArrayList<>((Collection<?>) managedValue);
             }
 
             if (dstList == null) {
@@ -453,7 +472,7 @@ public class DataContextImpl implements DataContextInternal {
             if (managedValue instanceof Set) {
                 dstSet = (Set<Object>) managedValue;
             } else if (managedValue != null) {//any proxy Collection can be returned in case of Collection entity attribute (see Haulmont/jmix-ui#243)
-                dstSet = new LinkedHashSet<Object>((Collection) managedValue);
+                dstSet = new LinkedHashSet<>((Collection<?>) managedValue);
             }
 
 
@@ -535,7 +554,7 @@ public class DataContextImpl implements DataContextInternal {
                     Map<Object, Object> entityMap = entry.getValue();
                     for (Object entity : entityMap.values()) {
                         if (entityStates.isLoaded(entity, metaProperty.getName())) {
-                            Collection collection = EntityValues.getValue(entity, metaProperty.getName());
+                            Collection<?> collection = EntityValues.getValue(entity, metaProperty.getName());
                             if (collection != null) {
                                 collection.remove(entityToRemove);
                             }
@@ -609,6 +628,12 @@ public class DataContextImpl implements DataContextInternal {
     }
 
     @Override
+    public void clearChanges() {
+        modifiedInstances.clear();
+        removedInstances.clear();
+    }
+
+    @Override
     public boolean isModified(Object entity) {
         return modifiedInstances.contains(entity);
     }
@@ -627,7 +652,7 @@ public class DataContextImpl implements DataContextInternal {
     }
 
     @Override
-    public Set getModified() {
+    public Set<Object> getModified() {
         return Collections.unmodifiableSet(modifiedInstances);
     }
 
@@ -637,7 +662,7 @@ public class DataContextImpl implements DataContextInternal {
     }
 
     @Override
-    public Set getRemoved() {
+    public Set<Object> getRemoved() {
         return Collections.unmodifiableSet(removedInstances);
     }
 
@@ -720,7 +745,7 @@ public class DataContextImpl implements DataContextInternal {
         }
     }
 
-    protected List filterSavedInstances(Set<Object> instances) {
+    protected List<Object> filterSavedInstances(Set<Object> instances) {
         return instances.stream()
                 .filter(entity -> !metadataTools.isJpaEmbeddable(entity.getClass()))
                 .collect(Collectors.toList());
@@ -732,10 +757,9 @@ public class DataContextImpl implements DataContextInternal {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public Collection<Object> isolate(List entities) {
+    public Collection<Object> isolate(List<Object> entities) {
         // re-serialize the whole collection to preserve links between objects
-        List isolatedEntities = (List) standardSerialization.deserialize(standardSerialization.serialize(entities));
+        List<Object> isolatedEntities = copier.copy(entities);
         for (int i = 0; i < isolatedEntities.size(); i++) {
             Object isolatedEntity = isolatedEntities.get(i);
             Object entity = entities.get(i);
@@ -791,7 +815,7 @@ public class DataContextImpl implements DataContextInternal {
         return merge(entitiesToMerge);
     }
 
-    public Collection getAll() {
+    public Collection<?> getAll() {
         List<Object> resultList = new ArrayList<>();
         for (Map<Object, Object> entityMap : content.values()) {
             resultList.addAll(entityMap.values());

@@ -4,10 +4,10 @@ import ${project_rootPackage}.entity.User;
 import ${project_rootPackage}.view.main.MainView;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.router.Route;
 import io.jmix.core.EntityStates;
-import io.jmix.core.MessageTools;
 import io.jmix.flowui.Notifications;
 import io.jmix.flowui.component.textfield.TypedTextField;
 import io.jmix.flowui.view.*;
@@ -35,14 +35,14 @@ public class UserDetailView extends StandardDetailView<User> {
     @ViewComponent
     private MessageBundle messageBundle;
     @Autowired
-    private MessageTools messageTools;
-    @Autowired
     private Notifications notifications;
 
     @Autowired
     private EntityStates entityStates;
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    private boolean newEntity;
 
     @Subscribe
     public void onInit(final InitEvent event) {
@@ -76,11 +76,19 @@ public class UserDetailView extends StandardDetailView<User> {
         if (entityStates.isNew(getEditedEntity())) {
             getEditedEntity().setPassword(passwordEncoder.encode(passwordField.getValue()));
 
-            String entityCaption = messageTools.getEntityCaption(getEditedEntityContainer().getEntityMetaClass());
-            notifications.create(messageBundle.formatMessage("noAssignedRolesNotification", entityCaption))
-                    .withType(Notifications.Type.WARNING)
+            newEntity = true;
+        }
+    }
+
+    @Subscribe
+    public void onAfterSave(final AfterSaveEvent event) {
+        if (newEntity) {
+            notifications.create(messageBundle.getMessage("noAssignedRolesNotification"))
+                    .withThemeVariant(NotificationVariant.LUMO_WARNING)
                     .withPosition(Notification.Position.TOP_END)
                     .show();
+
+            newEntity = false;
         }
     }
 }

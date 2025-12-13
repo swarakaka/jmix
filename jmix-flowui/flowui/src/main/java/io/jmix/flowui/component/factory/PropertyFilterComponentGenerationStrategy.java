@@ -34,6 +34,7 @@ import io.jmix.flowui.action.valuepicker.ValueClearAction;
 import io.jmix.flowui.app.propertyfilter.dateinterval.model.BaseDateInterval;
 import io.jmix.flowui.component.ComponentGenerationContext;
 import io.jmix.flowui.component.SupportsDatatype;
+import io.jmix.flowui.component.datepicker.TypedDatePicker;
 import io.jmix.flowui.component.propertyfilter.PropertyFilter;
 import io.jmix.flowui.component.propertyfilter.PropertyFilter.Operation;
 import io.jmix.flowui.component.select.JmixSelect;
@@ -49,7 +50,6 @@ public class PropertyFilterComponentGenerationStrategy extends AbstractComponent
 
     public static final String UNARY_FIELD_CLASS_NAME = "unary-field";
 
-    protected ApplicationContext applicationContext;
 //    protected DataAwareComponentsTools dataAwareComponentsTools;
 
     public PropertyFilterComponentGenerationStrategy(UiComponents uiComponents,
@@ -63,7 +63,6 @@ public class PropertyFilterComponentGenerationStrategy extends AbstractComponent
                                                      DataAwareComponentsTools dataAwareComponentsTools*/) {
         super(uiComponents, metadata, metadataTools, actions, datatypeRegistry, messages, entityFieldCreationSupport);
 //        this.dataAwareComponentsTools = dataAwareComponentsTools;
-        this.applicationContext = applicationContext;
     }
 
     @Nullable
@@ -89,14 +88,16 @@ public class PropertyFilterComponentGenerationStrategy extends AbstractComponent
         }
 
         PropertyFilterComponentGenerationContext pfContext = (PropertyFilterComponentGenerationContext) context;
-        if (pfContext.getOperation().getType() == Operation.Type.UNARY) {
+        if (pfContext.getOperation().getType() == Operation.Type.DATE) {
+            return createDateField(context);
+        } else if (pfContext.getOperation().getType() == Operation.Type.UNARY) {
             return createUnaryField(context);
         } else if (pfContext.getOperation().getType() == Operation.Type.LIST) {
             return createCollectionField(context, mpp);
         } else if (pfContext.getOperation().getType() == Operation.Type.INTERVAL) {
             return createIntervalField(context, mpp);
         } else if (mpp.getRange().getCardinality().isMany()
-                && pfContext.getOperation().getType() == PropertyFilter.Operation.Type.VALUE) {
+                && pfContext.getOperation().getType() == Operation.Type.VALUE) {
             //for 'member of' conditions of x-to-many property
             return createEntityField(context);
         }
@@ -129,6 +130,19 @@ public class PropertyFilterComponentGenerationStrategy extends AbstractComponent
         }
 
         return field;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    protected Component createDateField(ComponentGenerationContext context) {
+        TypedDatePicker datePicker = ((TypedDatePicker) createDatePicker(context));
+
+        MetaClass metaClass = context.getMetaClass();
+        MetaPropertyPath mpp = resolveMetaPropertyPath(metaClass, context.getProperty());
+        if (mpp != null) {
+            datePicker.setDatatype(mpp.getRange().asDatatype());
+        }
+
+        return datePicker;
     }
 
     @Override

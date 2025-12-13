@@ -19,13 +19,16 @@ package io.jmix.flowui.sys;
 import com.google.common.base.Strings;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.spring.security.AuthenticationContext;
+import io.jmix.core.annotation.Internal;
 import io.jmix.flowui.util.WebBrowserTools;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import org.springframework.lang.Nullable;
 import jakarta.servlet.ServletContext;
 
+@Internal
 @Component("flowui_LogoutSupport")
 public class LogoutSupport {
 
@@ -37,21 +40,24 @@ public class LogoutSupport {
         this.servletContext = servletContext;
     }
 
+    @Qualifier("VaadinAuthenticationContext")
     @Autowired(required = false)
     public void setAuthenticationContext(AuthenticationContext authenticationContext) {
         this.authenticationContext = authenticationContext;
     }
 
     public void logout() {
-        if (authenticationContext != null) {
-            authenticationContext.logout();
-        } else {
-            // window's 'beforeunload' event is triggered by changing Page's location,
-            // so we need to remove 'beforeunload' event listener, because logout happens
-            // anyway, even if a user stops browser tab closing, as a result it breaks app
-            WebBrowserTools.allowBrowserTabClosing(UI.getCurrent())
-                    .then(jsonValue -> doLogout());
-        }
+        // window's 'beforeunload' event is triggered by changing Page's location,
+        // so we need to remove 'beforeunload' event listener, because logout happens
+        // anyway, even if a user stops browser tab closing, as a result it breaks app
+        WebBrowserTools.allowBrowserTabClosing(UI.getCurrent())
+                .then(jsonValue -> {
+                    if (authenticationContext != null) {
+                        authenticationContext.logout();
+                    } else {
+                        doLogout();
+                    }
+                });
     }
 
     protected void doLogout() {

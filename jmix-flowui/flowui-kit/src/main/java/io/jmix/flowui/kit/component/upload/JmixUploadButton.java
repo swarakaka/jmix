@@ -23,6 +23,11 @@ import com.vaadin.flow.component.upload.UploadI18N;
 import com.vaadin.flow.internal.JsonSerializer;
 import com.vaadin.flow.shared.Registration;
 
+/**
+ * A custom upload button component that extends the Vaadin {@link Upload}.
+ * This component provides additional functionality, including integration
+ * with {@link JmixUploadI18N} and support for internal error handling.
+ */
 @Tag("jmix-upload-button")
 @JsModule("./src/upload-button/jmix-upload-button.js")
 public class JmixUploadButton extends Upload {
@@ -33,14 +38,6 @@ public class JmixUploadButton extends Upload {
 
     public JmixUploadButton() {
         addClassName(JMIX_UPLOAD_BUTTON_CLASS_NAME);
-    }
-
-    public void setEnabled(boolean enabled) {
-        getElement().setProperty("enabled", enabled);
-    }
-
-    public boolean isEnabled() {
-        return getElement().getProperty("enabled", false);
     }
 
     @Override

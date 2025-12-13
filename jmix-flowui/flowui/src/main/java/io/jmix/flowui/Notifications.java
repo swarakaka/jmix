@@ -25,13 +25,13 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Paragraph;
-import com.vaadin.flow.component.icon.Icon;
-import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import io.jmix.core.common.util.Preconditions;
 import io.jmix.flowui.event.notification.NotificationClosedEvent;
 import io.jmix.flowui.event.notification.NotificationOpenedEvent;
+import io.jmix.flowui.icon.Icons;
+import io.jmix.flowui.kit.icon.JmixFontIcon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -175,6 +175,7 @@ public class Notifications {
         protected Boolean closeable = null;
         protected NotificationVariant themeVariant;
         protected String className;
+        protected boolean assertive;
 
         /**
          * @param text notification text
@@ -262,6 +263,18 @@ public class Notifications {
             return this;
         }
 
+        /**
+         * Sets {@code aria-live} attribute of the notification card web-component to {@code assertive} instead
+         * of {@code polite}. This makes screen readers announce the notification content immediately when it appears.
+         *
+         * @param assertive whether to set {@code aria-live} attribute to {@code assertive}
+         * @return {@code this}
+         */
+        public NotificationBuilder withAssertive(boolean assertive) {
+            this.assertive = assertive;
+            return this;
+        }
+
         public Notification.Position getPosition() {
             return position;
         }
@@ -303,6 +316,14 @@ public class Notifications {
             return className;
         }
 
+        /**
+         * @return {@code true} if screen readers announce the notification content immediately when it appears,
+         * {@code false} otherwise
+         */
+        public boolean isAssertive() {
+            return assertive;
+        }
+
         @Nullable
         public Component getComponent() {
             return component;
@@ -317,6 +338,9 @@ public class Notifications {
             notification = createNotification();
             notification.setDuration(duration);
             notification.addThemeName(convertTypeToThemeName(type));
+
+            // force setting assertive if type error
+            notification.setAssertive(assertive || type == Type.ERROR);
 
             if (themeVariant != null) {
                 notification.addThemeVariants(themeVariant);
@@ -437,7 +461,7 @@ public class Notifications {
             Button button = new Button();
             button.setClassName(CLOSE_BUTTON_CLASS_NAME);
             button.addThemeVariants(ButtonVariant.LUMO_ICON, ButtonVariant.LUMO_TERTIARY_INLINE);
-            button.setIcon(new Icon(VaadinIcon.CLOSE_SMALL));
+            button.setIcon(icons().get(JmixFontIcon.CLOSE_SMALL));
             button.addClickListener(this::onCloseButtonClick);
             return button;
         }
@@ -486,6 +510,10 @@ public class Notifications {
             } else {
                 applicationContext.publishEvent(new NotificationClosedEvent(notification));
             }
+        }
+
+        protected Icons icons() {
+            return applicationContext.getBean(Icons.class);
         }
     }
 }

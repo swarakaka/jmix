@@ -179,7 +179,7 @@ public class JmixEntityManager implements EntityManager {
     @Override
     public <T> T getReference(Class<T> entityClass, Object primaryKey) {
         //noinspection unchecked
-        Class<T> effectiveClass = extendedEntities.getEffectiveClass(entityClass);
+        Class<T> effectiveClass = (Class<T>) extendedEntities.getEffectiveClass(entityClass);
 
         T reference = delegate.getReference(effectiveClass, primaryKey);
         ((Entity) reference).__getEntityEntry().setNew(false);
@@ -539,7 +539,8 @@ public class JmixEntityManager implements EntityManager {
                 continue;
             }
 
-            if (srcProperty.getRange().isClass() && !metadataTools.isEmbedded(srcProperty)) {
+            if (srcProperty.getRange().isClass()
+                    && srcProperty.getType() != MetaProperty.Type.EMBEDDED) {
                 if (!metadataTools.isOwningSide(srcProperty))
                     continue;
 
@@ -582,7 +583,7 @@ public class JmixEntityManager implements EntityManager {
                         deepCopyIgnoringNulls(value, reloadedRef, visited);
                     }
                 }
-            } else if (metadataTools.isEmbedded(srcProperty)) {
+            } else if (srcProperty.getType() == MetaProperty.Type.EMBEDDED) {
                 Object destRef = EntityValues.getValue(dest, name);
                 if (destRef != null) {
                     deepCopyIgnoringNulls(value, destRef, visited);

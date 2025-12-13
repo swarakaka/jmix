@@ -29,10 +29,10 @@ import io.jmix.flowui.fragment.Fragment;
 import io.jmix.flowui.fragment.FragmentOwner;
 import io.jmix.flowui.fragment.FragmentUtils;
 import io.jmix.flowui.kit.action.Action;
+import io.jmix.flowui.kit.component.ActionHolder;
 import io.jmix.flowui.kit.component.HasActions;
+import io.jmix.flowui.kit.component.HasContent;
 import io.jmix.flowui.kit.component.HasSubParts;
-import io.jmix.flowui.kit.component.dropdownbutton.ActionItem;
-import io.jmix.flowui.kit.component.dropdownbutton.ComponentItem;
 import io.jmix.flowui.model.InstallSubject;
 import io.jmix.flowui.model.ViewData;
 import io.jmix.flowui.sys.autowire.ReflectionCacheManager.AnnotatedMethod;
@@ -52,10 +52,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.*;
 import java.util.*;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.*;
 
 import static io.jmix.flowui.sys.ValuePathHelper.*;
 import static java.lang.reflect.Proxy.newProxyInstance;
@@ -83,12 +80,6 @@ public final class AutowireUtils {
     @Nullable
     public static Object findMethodTarget(Composite<?> composite, String targetId,
                                           BiFunction<Component, String, Optional<Component>> componentFinder) {
-        Component componentLayout = composite.getContent();
-        if (!UiComponentUtils.isContainer(componentLayout)) {
-            throw new IllegalStateException(composite.getClass().getSimpleName() + "'s layout composite " +
-                    "doesn't support child components");
-        }
-
         String[] elements = parse(targetId);
         if (elements.length == 1) {
             Action action = findActionCandidate(composite, targetId);
@@ -113,25 +104,7 @@ public final class AutowireUtils {
 
             if (componentOpt.isPresent()) {
                 Component component = componentOpt.get();
-
-                if (component instanceof HasSubParts hasSubParts) {
-                    Object part = hasSubParts.getSubPart(id);
-                    if (part != null) {
-                        return part;
-                    }
-                }
-
-                if (component instanceof HasActions hasActions) {
-                    Action action = hasActions.getAction(id);
-                    if (action != null) {
-                        return action;
-                    }
-                }
-
-                if (UiComponentUtils.isContainer(component)) {
-                    return componentFinder.apply(component, id)
-                            .orElse(null);
-                }
+                return findMethodTarget(component, id, componentFinder);
             }
 
             Facet facet = findFacetCandidate(composite, pathPrefix(elements));
@@ -139,9 +112,16 @@ public final class AutowireUtils {
                 return hasSubParts.getSubPart(id);
             }
 
-            Object dropdownItemCandidate = findMethodTarget(composite, pathPrefix(elements), componentFinder);
-            if (dropdownItemCandidate instanceof ComponentItem componentItem) {
-                Component content = componentItem.getContent();
+            Object nestedItemCandidate = findMethodTarget(composite, pathPrefix(elements), componentFinder);
+            if (nestedItemCandidate instanceof HasSubParts hasSubParts) {
+                Object part = hasSubParts.getSubPart(id);
+                if (part != null) {
+                    return part;
+                }
+            }
+
+            if (nestedItemCandidate instanceof HasContent hasContent) {
+                Component content = hasContent.getContent();
                 if (content == null) {
                     return null;
                 }
@@ -152,8 +132,8 @@ public final class AutowireUtils {
 
                 return componentFinder.apply(content, id)
                         .orElse(null);
-            } else if (dropdownItemCandidate instanceof ActionItem actionItem) {
-                Action action = actionItem.getAction();
+            } else if (nestedItemCandidate instanceof ActionHolder actionHolder) {
+                Action action = actionHolder.getAction();
                 if (action == null) {
                     return null;
                 }
@@ -161,11 +141,36 @@ public final class AutowireUtils {
                 if (id.equals(action.getId())) {
                     return action;
                 }
-            } else if (dropdownItemCandidate instanceof Component dropdownContent) {
+            } else if (nestedItemCandidate instanceof Component component) {
                 // For case where the method's targetId is deeper than the first level of children for the componentItem
-                return componentFinder.apply(dropdownContent, id)
-                        .orElse(null);
+                // The target ID can be not only a component ID, but also an action ID.
+                return findMethodTarget(component, id, componentFinder);
             }
+        }
+
+        return null;
+    }
+
+    @Nullable
+    private static Object findMethodTarget(Component component, String targetId,
+                                           BiFunction<Component, String, Optional<Component>> componentFinder) {
+        if (component instanceof HasSubParts hasSubParts) {
+            Object part = hasSubParts.getSubPart(targetId);
+            if (part != null) {
+                return part;
+            }
+        }
+
+        if (component instanceof HasActions hasActions) {
+            Action action = hasActions.getAction(targetId);
+            if (action != null) {
+                return action;
+            }
+        }
+
+        if (UiComponentUtils.isContainer(component)) {
+            return componentFinder.apply(component, targetId)
+                    .orElse(null);
         }
 
         return null;
@@ -717,6 +722,31 @@ public final class AutowireUtils {
         return newProxyInstance(classLoader, new Class[]{targetObjectType},
                 new InstalledProxyHandler(component, method)
         );
+    }
+
+    /**
+     * Converts the provided methods to a {@link AnnotatedMethod}, applying a filter.
+     *
+     * @param <T>                   the type of the annotation class
+     * @param annotationClass       the class of the annotation
+     * @param uniqueDeclaredMethods an array of methods to process
+     * @param filter                a predicate used to filter methods
+     * @return a list of {@link AnnotatedMethod} objects that match the filter
+     */
+    public static <T extends Annotation> List<AnnotatedMethod<T>> getAnnotatedMethodsNotCached(
+            Class<T> annotationClass, Method[] uniqueDeclaredMethods, Predicate<Method> filter
+    ) {
+        List<AnnotatedMethod<T>> annotatedMethods = new ArrayList<>();
+        for (Method method : uniqueDeclaredMethods) {
+            if (filter.test(method)) {
+                AnnotatedMethod<T> annotatedMethod = AutowireUtils.createAnnotatedMethod(annotationClass, method);
+                if (annotatedMethod != null) {
+                    annotatedMethods.add(annotatedMethod);
+                }
+            }
+        }
+
+        return annotatedMethods;
     }
 
     @Nullable

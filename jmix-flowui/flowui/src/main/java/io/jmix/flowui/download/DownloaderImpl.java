@@ -20,14 +20,9 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.StreamResource;
 import com.vaadin.flow.server.VaadinResponse;
 import com.vaadin.flow.server.VaadinSession;
-import io.jmix.core.CoreProperties;
-import io.jmix.core.FileRef;
-import io.jmix.core.FileStorage;
-import io.jmix.core.FileStorageException;
-import io.jmix.core.FileStorageLocator;
-import io.jmix.core.FileTypesHelper;
-import io.jmix.core.Messages;
+import io.jmix.core.*;
 import io.jmix.flowui.UiProperties;
+import io.jmix.flowui.asynctask.UiAsyncTasks;
 import io.jmix.flowui.component.filedownloader.JmixFileDownloader;
 import io.jmix.flowui.exception.IllegalConcurrentAccessException;
 import org.apache.commons.io.FilenameUtils;
@@ -37,12 +32,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
-
 import org.springframework.lang.Nullable;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import static jakarta.servlet.http.HttpServletResponse.SC_NOT_FOUND;
 
@@ -54,11 +50,13 @@ import static jakarta.servlet.http.HttpServletResponse.SC_NOT_FOUND;
 public class DownloaderImpl implements Downloader {
 
     private static final Logger log = LoggerFactory.getLogger(DownloaderImpl.class);
+    protected static final String DEFAULT_CHARSET_SUFFIX = ";charset=UTF-8";
 
     protected UiProperties uiProperties;
     protected CoreProperties coreProperties;
 
     protected Messages messages;
+    protected UiAsyncTasks uiAsyncTasks;
 
     protected FileStorageLocator fileStorageLocator;
     protected FileStorage fileStorage;
@@ -67,6 +65,9 @@ public class DownloaderImpl implements Downloader {
 
     // Use flags from app.properties for show/download files
     protected boolean useViewList;
+
+    // Predicate for open/download files check
+    protected Predicate<String> viewFilePredicate = this::defaultViewFilePredicate;
 
     /**
      * Constructor with newWindow=false
@@ -105,11 +106,22 @@ public class DownloaderImpl implements Downloader {
         this.fileStorageLocator = fileStorageLocator;
     }
 
-    @Override
-    public void setFileStorage(FileStorage fileStorage) {
-        this.fileStorage = fileStorage;
+    @Autowired
+    public void setUiAsyncTasks(UiAsyncTasks uiAsyncTasks) {
+        this.uiAsyncTasks = uiAsyncTasks;
+    }
 
-        log.warn("The passed value is ignored. Actual file storage is obtained from " + FileRef.class.getSimpleName());
+    protected boolean defaultViewFilePredicate(String fileExtension) {
+        if (StringUtils.isEmpty(fileExtension)) {
+            return false;
+        }
+
+        return uiProperties.getViewFileExtensions().contains(StringUtils.lowerCase(fileExtension));
+    }
+
+    @Override
+    public void setViewFilePredicate(Predicate<String> viewFilePredicate) {
+        this.viewFilePredicate = viewFilePredicate;
     }
 
     @Override
@@ -155,7 +167,7 @@ public class DownloaderImpl implements Downloader {
                 fileExt = FilenameUtils.getExtension(resourceName);
             }
 
-            showNewWindow = uiProperties.getViewFileExtensions().contains(StringUtils.lowerCase(fileExt));
+            showNewWindow = viewFilePredicate.test(StringUtils.lowerCase(fileExt));
         }
 
         if (downloadFormat != null) {
@@ -173,14 +185,16 @@ public class DownloaderImpl implements Downloader {
         log.debug("added {} in {}", JmixFileDownloader.class.getSimpleName(), ui);
 
         fileDownloader.setFileName(resourceName);
+        fileDownloader.setCacheMaxAgeSec(uiProperties.getFileDownloaderCacheMaxAgeSec());
+        fileDownloader.addDownloadFinishedListener(this::fileDownloaderRemoveHandler);
         fileDownloader.setFileNotFoundExceptionHandler(this::handleFileNotFoundException);
 
         StreamResource resource = new StreamResource(resourceName, dataProvider::getStream);
 
         if (downloadFormat != null && StringUtils.isNotEmpty(downloadFormat.getContentType())) {
-            resource.setContentType(downloadFormat.getContentType());
+            resource.setContentType(downloadFormat.getContentType() + DEFAULT_CHARSET_SUFFIX);
         } else {
-            resource.setContentType(FileTypesHelper.getMIMEType(resourceName));
+            resource.setContentType(FileTypesHelper.getMIMEType(resourceName) + DEFAULT_CHARSET_SUFFIX);
         }
 
         if (showNewWindow && isBrowserSupportsPopups() || isIPhone()) {
@@ -242,6 +256,20 @@ public class DownloaderImpl implements Downloader {
         if (vaadinSession == null || !vaadinSession.hasLock()) {
             throw new IllegalConcurrentAccessException();
         }
+    }
+
+    protected void fileDownloaderRemoveHandler(JmixFileDownloader.DownloadFinishedEvent event) {
+        uiAsyncTasks.runnableConfigurer(() -> {
+                    try {
+                        // timer
+                        TimeUnit.SECONDS.sleep(60);
+                    } catch (InterruptedException e) {
+                        log.debug("{} exception in background task", e.getClass().getName(), e);
+                    }
+                })
+                .withResultHandler(event.getSource()::removeFromParent)
+                .withTimeout(62, TimeUnit.SECONDS)
+                .runAsync();
     }
 
     protected boolean handleFileNotFoundException(JmixFileDownloader.FileNotFoundContext fileNotFoundEvent) {

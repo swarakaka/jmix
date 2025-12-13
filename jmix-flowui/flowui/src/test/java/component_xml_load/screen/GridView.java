@@ -16,13 +16,12 @@
 
 package component_xml_load.screen;
 
+import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.router.Route;
 import io.jmix.flowui.component.grid.DataGrid;
 import io.jmix.flowui.component.grid.TreeDataGrid;
-import io.jmix.flowui.view.ViewComponent;
-import io.jmix.flowui.view.StandardView;
-import io.jmix.flowui.view.ViewController;
-import io.jmix.flowui.view.ViewDescriptor;
+import io.jmix.flowui.kit.component.button.JmixButton;
+import io.jmix.flowui.view.*;
 
 @Route(value = "grid-view")
 @ViewController("GridView")
@@ -42,7 +41,13 @@ public class GridView extends StandardView {
     public DataGrid<?> dataGridWithCustomContextMenu;
 
     @ViewComponent
+    public DataGrid<?> dataGridWithCustomEmptyStateComponent;
+
+    @ViewComponent
     public TreeDataGrid<?> treeDataGrid;
+
+    @ViewComponent
+    public TreeDataGrid<?> treeDataGridWithCustomEmptyStateComponent;
 
     @ViewComponent
     public TreeDataGrid<?> anotherTreeDataGrid;
@@ -53,7 +58,23 @@ public class GridView extends StandardView {
     @ViewComponent
     public TreeDataGrid<?> treeDataGridWithCustomContextMenu;
 
+    @ViewComponent
+    public JmixButton emptyStateButton;
+
+    @ViewComponent
+    public JmixButton treeDataGridEmptyStateButton;
+
     public void loadData() {
         getViewData().loadAll();
+    }
+
+    @Subscribe("emptyStateButton")
+    public void onEmptyStateButtonClick(ClickEvent<JmixButton> event) {
+        loadData();
+    }
+
+    @Subscribe("treeDataGridEmptyStateButton")
+    public void onTreeDataGridEmptyStateButtonClick(ClickEvent<JmixButton> event) {
+        loadData();
     }
 }

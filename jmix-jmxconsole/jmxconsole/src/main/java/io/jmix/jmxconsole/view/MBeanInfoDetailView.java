@@ -21,9 +21,9 @@ import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
+import com.vaadin.flow.data.renderer.Renderer;
 import com.vaadin.flow.router.Route;
-import io.jmix.core.MessageTools;
-import io.jmix.core.Metadata;
+import com.vaadin.flow.router.RouteAlias;
 import io.jmix.flowui.DialogWindows;
 import io.jmix.flowui.UiComponents;
 import io.jmix.flowui.component.details.JmixDetails;
@@ -41,7 +41,8 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
-@Route(value = "jmxconsole/mbeaninfo/:mbean", layout = DefaultMainViewParent.class)
+@RouteAlias(value = "jmxconsole/mbeaninfo/:mbean", layout = DefaultMainViewParent.class)
+@Route(value = "jmxcon/mbean-info/:mbean", layout = DefaultMainViewParent.class)
 @ViewController("jmxcon_ManagedBeanInfo.detail")
 @ViewDescriptor("mbean-detail-view.xml")
 @EditedEntityContainer("mbeanDc")
@@ -60,20 +61,21 @@ public class MBeanInfoDetailView extends StandardDetailView<ManagedBeanInfo> {
     @ViewComponent
     protected TypedTextField<String> operationsSearchField;
 
+    @ViewComponent
+    protected MessageBundle messageBundle;
     @Autowired
     protected JmxControl jmxControl;
-    @Autowired
-    protected Metadata metadata;
-    @Autowired
-    protected MessageTools messageTools;
-    @Autowired
-    protected MessageBundle messageBundle;
     @Autowired
     protected UiComponents uiComponents;
     @Autowired
     protected DialogWindows dialogWindows;
     @Autowired
     protected UrlParamSerializer urlParamSerializer;
+
+    @Override
+    protected void setupEntityToEdit(ManagedBeanInfo entityToEdit) {
+        // do nothing
+    }
 
     @Override
     protected void initExistingEntity(String mbeanObjectName) {
@@ -125,7 +127,6 @@ public class MBeanInfoDetailView extends StandardDetailView<ManagedBeanInfo> {
 
         initMbeanFormLayout();
         initOperationsLayout();
-        initDataGridColumns();
         initSearchField();
     }
 
@@ -152,13 +153,8 @@ public class MBeanInfoDetailView extends StandardDetailView<ManagedBeanInfo> {
         }
     }
 
-    protected void initDataGridColumns() {
-        attributesDataGrid.addColumn(createStatusComponentRenderer())
-                .setHeader(messageTools.getPropertyCaption(
-                        metadata.getClass(ManagedBeanAttribute.class), "readableWriteable"));
-    }
-
-    protected ComponentRenderer<Span, ManagedBeanAttribute> createStatusComponentRenderer() {
+    @Supply(to = "attributesDataGrid.access", subject = "renderer")
+    protected Renderer<ManagedBeanAttribute> createStatusComponentRenderer() {
         return new ComponentRenderer<>(this::createReadableWritableComponent, this::readableWritableComponentUpdater);
     }
 

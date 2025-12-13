@@ -19,11 +19,16 @@ package io.jmix.auditflowui.view.sessions;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.renderer.Renderer;
+import com.vaadin.flow.data.renderer.TextRenderer;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouteAlias;
 import io.jmix.audit.UserSessions;
 import io.jmix.audit.entity.EntityLogItem;
 import io.jmix.audit.entity.UserSession;
 import io.jmix.core.Messages;
+import io.jmix.core.Sort;
+import io.jmix.core.entity.EntityValues;
 import io.jmix.flowui.Notifications;
 import io.jmix.flowui.component.datepicker.TypedDatePicker;
 import io.jmix.flowui.component.grid.DataGrid;
@@ -33,15 +38,19 @@ import io.jmix.flowui.model.CollectionLoader;
 import io.jmix.flowui.view.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-@Route(value = "audit/usersessions", layout = DefaultMainViewParent.class)
+@RouteAlias(value = "audit/usersessions", layout = DefaultMainViewParent.class)
+@Route(value = "audit/user-sessions", layout = DefaultMainViewParent.class)
 @ViewController("userSession.view")
 @ViewDescriptor("user-sessions-view.xml")
 @LookupComponent("sessionsTable")
@@ -97,6 +106,16 @@ public class UserSessionsView extends StandardListView<EntityLogItem> {
                 sessions = sessions.filter(o -> o.getLastRequest().before(Date
                         .from(beforeDateTime.atZone(ZoneId.systemDefault()).toInstant())));
             }
+            Sort sort = userSessionsDl.getSort();
+            if (sort != null) {
+                for (Sort.Order order : sort.getOrders()) {
+                    Comparator<Object> comparator = Comparator.comparing(userSession ->
+                            Objects.requireNonNull(EntityValues.getValue(userSession, order.getProperty())));
+                    if (order.getDirection() == Sort.Direction.DESC)
+                        comparator = comparator.reversed();
+                    sessions = sessions.sorted(comparator);
+                }
+            }
             return sessions.collect(Collectors.toList());
         });
     }
@@ -136,5 +155,11 @@ public class UserSessionsView extends StandardListView<EntityLogItem> {
     protected void refreshDlItems() {
         sessionsTable.deselectAll();
         userSessionsDl.load();
+    }
+
+    @Supply(to = "sessionsTable.lastRequest", subject = "renderer")
+    private Renderer<UserSession> sessionsTableLastRequestRenderer() {
+        return new TextRenderer<>(userSession ->
+                new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(userSession.getLastRequest()));
     }
 }

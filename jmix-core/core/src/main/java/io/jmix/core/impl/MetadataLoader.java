@@ -16,6 +16,9 @@
 
 package io.jmix.core.impl;
 
+import com.google.common.base.Splitter;
+import io.jmix.core.MetadataPostProcessor;
+import io.jmix.core.Stores;
 import io.jmix.core.entity.annotation.*;
 import io.jmix.core.impl.scanning.EntityDetector;
 import io.jmix.core.impl.scanning.JmixModulesClasspathScanner;
@@ -34,10 +37,7 @@ import org.springframework.stereotype.Component;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * INTERNAL.
@@ -52,7 +52,9 @@ public class MetadataLoader {
     protected Session session;
 
     @Autowired
-    public MetadataLoader(JmixModulesClasspathScanner classpathScanner, MetaModelLoader metaModelLoader) {
+    public MetadataLoader(JmixModulesClasspathScanner classpathScanner,
+                          MetaModelLoader metaModelLoader,
+                          List<MetadataPostProcessor> postProcessors) {
         this.session = new SessionImpl();
 
         log.trace("Initializing metadata");
@@ -66,6 +68,10 @@ public class MetadataLoader {
         }
 
         initExtensionMetaAnnotations();
+
+        for (MetadataPostProcessor postProcessor : postProcessors) {
+            postProcessor.process(session);
+        }
 
         log.info("Metadata initialized in {} ms", System.currentTimeMillis() - startTime);
     }
@@ -111,6 +117,24 @@ public class MetadataLoader {
             MetaProperty[] properties = (MetaProperty[]) metaAnnotations.get(OnDeleteInverse.class.getName());
             properties = ArrayUtils.add(properties, metaProperty);
             metaAnnotations.put(OnDeleteInverse.class.getName(), properties);
+        }
+
+        // init cross-datastore references
+        if (metaProperty.getRange().isClass() &&
+                !Objects.equals(metaProperty.getStore().getName(), metaClass.getStore().getName())
+                && !Stores.NOOP.equals(metaProperty.getRange().asClass().getStore().getName())
+        ) {
+            String dependsOnPropertiesStr = (String) metaProperty.getAnnotations().get("dependsOnProperties");
+            if (dependsOnPropertiesStr != null) {
+                List<String> dependsOnProperties = Splitter.on(',').omitEmptyStrings().trimResults().splitToList(dependsOnPropertiesStr);
+                if (dependsOnProperties.size() == 1) {
+                    String relatedPropertyName = dependsOnProperties.get(0);
+                    MetaProperty relatedMetaProperty = metaClass.getProperty(relatedPropertyName);
+                    relatedMetaProperty.getAnnotations().put("jmix.crossDataStoreRef", metaProperty);
+
+                    metaProperty.getAnnotations().put("jmix.crossDataStoreRefId", relatedMetaProperty);
+                }
+            }
         }
     }
 

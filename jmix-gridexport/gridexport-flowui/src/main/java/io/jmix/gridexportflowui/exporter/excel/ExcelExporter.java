@@ -22,6 +22,7 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.HeaderRow;
 import com.vaadin.flow.component.treegrid.TreeGrid;
 import com.vaadin.flow.data.provider.hierarchy.HierarchicalDataProvider;
+import io.jmix.core.DateTimeTransformations;
 import io.jmix.core.Entity;
 import io.jmix.core.Id;
 import io.jmix.core.common.util.Preconditions;
@@ -29,17 +30,23 @@ import io.jmix.core.metamodel.datatype.Datatype;
 import io.jmix.core.metamodel.model.MetaProperty;
 import io.jmix.core.metamodel.model.MetaPropertyPath;
 import io.jmix.core.metamodel.model.Range;
+import io.jmix.core.security.CurrentAuthentication;
 import io.jmix.flowui.Notifications;
 import io.jmix.flowui.component.ListDataComponent;
 import io.jmix.flowui.component.grid.DataGrid;
 import io.jmix.flowui.component.grid.EnhancedDataGrid;
 import io.jmix.flowui.component.grid.TreeDataGrid;
 import io.jmix.flowui.component.grid.headerfilter.DataGridHeaderFilter;
+import io.jmix.flowui.component.groupgrid.*;
+import io.jmix.flowui.component.groupgrid.adapter.AbstractGroupDataGridAdapter;
+import io.jmix.flowui.component.groupgrid.adapter.AbstractGroupDataGridColumnAdapter;
+import io.jmix.flowui.component.groupgrid.data.GroupDataGridItems;
 import io.jmix.flowui.data.grid.ContainerDataGridItems;
 import io.jmix.flowui.data.grid.ContainerTreeDataGridItems;
 import io.jmix.flowui.download.ByteArrayDownloadDataProvider;
 import io.jmix.flowui.download.Downloader;
 import io.jmix.flowui.kit.component.grid.JmixGrid;
+import io.jmix.flowui.kit.component.grid.JmixTreeGrid;
 import io.jmix.flowui.model.InstanceContainer;
 import io.jmix.gridexportflowui.GridExportProperties;
 import io.jmix.gridexportflowui.action.ExportAction;
@@ -63,9 +70,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.Time;
 import java.text.ParseException;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.*;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -111,13 +116,19 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
     protected GridExportProperties gridExportProperties;
     protected Notifications notifications;
     protected AllEntitiesLoaderFactory allEntitiesLoaderFactory;
+    protected CurrentAuthentication currentAuthentication;
+    protected DateTimeTransformations dateTimeTransformations;
 
     public ExcelExporter(GridExportProperties gridExportProperties,
                          Notifications notifications,
-                         AllEntitiesLoaderFactory allEntitiesLoaderFactory) {
+                         AllEntitiesLoaderFactory allEntitiesLoaderFactory,
+                         CurrentAuthentication currentAuthentication,
+                         DateTimeTransformations dateTimeTransformations) {
         this.gridExportProperties = gridExportProperties;
         this.notifications = notifications;
         this.allEntitiesLoaderFactory = allEntitiesLoaderFactory;
+        this.currentAuthentication = currentAuthentication;
+        this.dateTimeTransformations = dateTimeTransformations;
     }
 
     protected void createWorkbookWithSheet() {
@@ -151,9 +162,7 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
             createFonts();
             createFormats();
 
-            List<Grid.Column<Object>> columns = dataGrid.getColumns().stream()
-                    .filter(columnFilter)
-                    .toList();
+            List<Grid.Column<Object>> columns = getColumns(dataGrid, columnFilter, exportMode);
 
             int r = 0;
 
@@ -165,7 +174,7 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
             CellStyle headerCellStyle = wb.createCellStyle();
             headerCellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
             for (DataGrid.Column<?> column : columns) {
-                String columnHeaderText = getColumnHeaderText(column);
+                String columnHeaderText = getColumnHeaderText(dataGrid, column);
 
                 int countOfReturnSymbols = StringUtils.countMatches(columnHeaderText, "\n");
                 if (countOfReturnSymbols > 0) {
@@ -177,7 +186,7 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
 
             for (int c = 0; c < columns.size(); c++) {
                 DataGrid.Column<?> column = columns.get(c);
-                String columnHeaderText = getColumnHeaderText(column);
+                String columnHeaderText = getColumnHeaderText(dataGrid, column);
 
                 Cell cell = row.createCell(c);
                 RichTextString richTextString = createStringCellValue(columnHeaderText);
@@ -211,9 +220,13 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
                 }
 
             } else if (exportMode == ExportMode.CURRENT_PAGE) {
-                if (dataGrid instanceof TreeDataGrid) {
-                    TreeDataGrid treeDataGrid = (TreeDataGrid) dataGrid;
-                    List<Object> items = dataGridSource.getContainer().getItems();
+                if (dataGrid instanceof TreeDataGrid treeDataGrid
+                        && dataGridSource instanceof ContainerTreeDataGridItems containerTreeDataGridItems) {
+
+                    // only top level items
+                    List<Object> items = containerTreeDataGridItems.getContainer().getItems().stream()
+                            .filter(entity -> containerTreeDataGridItems.getLevel(entity) == 0)
+                            .toList();
 
                     for (Object item : items) {
                         if (checkIsRowNumberExceed(r)) {
@@ -222,6 +235,16 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
 
                         r = createDataGridHierarchicalRow(treeDataGrid, ((ContainerTreeDataGridItems) dataGridSource),
                                 columns, 0, r, item);
+                    }
+                } else if (dataGrid instanceof AbstractGroupDataGridAdapter<Object> groupDataGrid
+                        && groupDataGrid.hasGroups()) {
+
+                    for (GroupInfo item : groupDataGrid.getRootGroups()) {
+                        if (checkIsRowNumberExceed(r)) {
+                            break;
+                        }
+
+                        r = createDataGridGroupRow(groupDataGrid, columns, 0, ++r, item);
                     }
                 } else {
                     for (Object itemId : dataGridSource.getContainer().getItems().stream()
@@ -283,6 +306,31 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
         }
     }
 
+    protected String getColumnHeaderText(Grid<Object> dataGrid, DataGrid.Column<?> column) {
+        if (dataGrid instanceof AbstractGroupDataGridAdapter<Object> gridAdapter) {
+            // Grouping column is not attached to the Grid,
+            // so we should retrieve the last specified header.
+            if (gridAdapter.getGroupingColumns().contains(column)
+                    && column instanceof AbstractGroupDataGridColumnAdapter<?> columnAdapter) {
+                String headerText = columnAdapter.getStoredHeaderText();
+                if (!Strings.isNullOrEmpty(headerText)) {
+                    return headerText;
+                }
+
+                com.vaadin.flow.component.Component headerComponent = columnAdapter.getStoredHeaderComponent();
+
+                if (headerComponent instanceof HasText hasText) {
+                    headerText = hasText.getText();
+                } else if (headerComponent instanceof DataGridHeaderFilter dataGridHeaderFilter
+                        && dataGridHeaderFilter.getHeader() instanceof HasText hasText) {
+                    headerText = hasText.getText();
+                }
+                return Strings.nullToEmpty(headerText);
+            }
+        }
+        return getColumnHeaderText(column);
+    }
+
     protected String getColumnHeaderText(DataGrid.Column<?> column) {
         String headerText = !isHeaderRowAppended(column)
                 ? column.getHeaderText()
@@ -309,7 +357,14 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
 
     @Nullable
     protected String getDefaultHeaderText(Grid.Column<?> column) {
-        HeaderRow defaultHeaderRow = ((JmixGrid<?>) column.getGrid()).getDefaultHeaderRow();
+        HeaderRow defaultHeaderRow = null;
+
+        if (column.getGrid() instanceof JmixGrid<?> jmixGrid) {
+            defaultHeaderRow = jmixGrid.getDefaultHeaderRow();
+        } else if (column.getGrid() instanceof JmixTreeGrid<?> jmixTreeGrid) {
+            defaultHeaderRow = jmixTreeGrid.getDefaultHeaderRow();
+        }
+
         return defaultHeaderRow == null
                 ? null
                 : defaultHeaderRow.getCell(column).getText();
@@ -317,7 +372,14 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
 
     @Nullable
     protected com.vaadin.flow.component.Component getDefaultHeaderComponent(DataGrid.Column<?> column) {
-        HeaderRow defaultHeaderRow = ((JmixGrid<?>) column.getGrid()).getDefaultHeaderRow();
+        HeaderRow defaultHeaderRow = null;
+
+        if (column.getGrid() instanceof JmixGrid<?> jmixGrid) {
+            defaultHeaderRow = jmixGrid.getDefaultHeaderRow();
+        } else if (column.getGrid() instanceof JmixTreeGrid<?> jmixTreeGrid) {
+            defaultHeaderRow = jmixTreeGrid.getDefaultHeaderRow();
+        }
+
         return defaultHeaderRow == null
                 ? null
                 : defaultHeaderRow.getCell(column).getComponent();
@@ -329,10 +391,94 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
         if (!checkIsRowNumberExceed(rowNumber)) {
             createDataGridRow(dataGrid, columns, startColumn, ++rowNumber, Id.of(item).getValue());
 
-            Collection<Object> children = treeDataGridItems.getChildren(item).collect(Collectors.toList());
+            Collection<Object> children = treeDataGridItems.getChildren(item).toList();
             for (Object child : children) {
                 rowNumber = createDataGridHierarchicalRow(dataGrid, treeDataGridItems, columns, startColumn, rowNumber, child);
             }
+        }
+
+        return rowNumber;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    protected int createDataGridGroupRow(AbstractGroupDataGridAdapter<Object> groupDataGrid,
+                                         List<Grid.Column<Object>> columns,
+                                         int startColumn, int rowNumber, GroupInfo groupInfo) {
+        GroupDataGridItems<?> groupDataGridItems = groupDataGrid.getItems();
+        if (groupDataGridItems == null) {
+            return rowNumber;
+        }
+
+        Row row = sheet.createRow(rowNumber);
+
+        for (int col = 0; col < columns.size(); ++col) {
+            Grid.Column<Object> column = columns.get(col);
+            if (!groupDataGrid.isGroupColumn(column)) {
+                continue;
+            }
+
+            Cell cell = row.createCell(col);
+            Object val = groupInfo.getValue();
+
+            Collection<?> children = groupDataGridItems.getChildItems(groupInfo);
+            if (children.isEmpty()) {
+                return rowNumber;
+            }
+
+            Integer groupChildCount = null;
+            Object captionValue = val;
+            com.vaadin.flow.component.Component adapteeColumn =
+                    ((AbstractGroupDataGridColumnAdapter) column).getAdaptee();
+
+            if (adapteeColumn instanceof GroupColumn<?> groupColumn) {
+                if (groupColumn.isDisplayItemsCount()) {
+                    groupChildCount = children.size();
+                }
+                if (groupColumn.getGroupCellValueFormatter() != null) {
+                    // disable separate "(N)" printing
+                    groupChildCount = null;
+
+                    GroupCellValueFormatter<?> groupCellValueFormatter = groupColumn.getGroupCellValueFormatter();
+
+                    Collection<?> groupItems = groupDataGridItems.getGroupItems(groupInfo);
+
+                    GroupCellValueFormatter.GroupCellContext<?> cellContext =
+                            new GroupCellValueFormatter.GroupCellContext<>(groupInfo, groupItems);
+
+                    captionValue = groupCellValueFormatter.format((GroupCellValueFormatter.GroupCellContext) cellContext);
+                }
+            }
+
+            int level = 0;
+            GroupInfo groupParent = groupInfo.getParent();
+            while (groupParent != null) {
+                groupParent = groupParent.getParent();
+                level++;
+            }
+
+            Object property = groupInfo.getProperty().get();
+            MetaPropertyPath mpp = property instanceof MetaPropertyPath ? (MetaPropertyPath) property : null;
+
+            formatValueCell(cell, captionValue, mpp, col, rowNumber, level, groupChildCount);
+        }
+
+        int oldRowNumber = rowNumber;
+        List<GroupInfo> children = groupDataGrid.getChildren(groupInfo);
+        if (!children.isEmpty()) {
+            for (GroupInfo child : children) {
+                rowNumber = createDataGridGroupRow(groupDataGrid, columns, startColumn, ++rowNumber, child);
+            }
+        } else {
+            Collection<?> items = groupDataGridItems.getGroupItems(groupInfo);
+            for (Object item : items) {
+                createDataGridRow(groupDataGrid, columns, startColumn, ++rowNumber, Id.of(item).getValue());
+            }
+        }
+
+        if (checkIsRowNumberExceed(rowNumber)) {
+            sheet.groupRow(oldRowNumber + 1, MAX_ROW_COUNT);
+        } else {
+            sheet.groupRow(oldRowNumber + 1, rowNumber);
         }
 
         return rowNumber;
@@ -435,6 +581,7 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
         return sb.toString();
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     protected void formatValueCell(Cell cell, @Nullable Object cellValue, @Nullable MetaPropertyPath metaPropertyPath,
                                    int sizersIndex, int notificationRequired, int level, @Nullable Integer groupChildCount) {
 
@@ -548,6 +695,28 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
                 String str = datatypeRegistry.get(LocalDateTime.class).format(dateTime);
                 sizers[sizersIndex].notifyCellValue(str, stdFont);
             }
+        } else if (cellValue instanceof OffsetTime offsetTime) {
+            LocalTime time = dateTimeTransformations.transformToLocalTime(offsetTime);
+
+            cell.setCellValue(Time.valueOf(time));
+            cell.setCellStyle(timeFormatCellStyle);
+
+            if (sizers[sizersIndex].isNotificationRequired(notificationRequired)) {
+                String str = datatypeRegistry.get(LocalTime.class).format(time);
+                sizers[sizersIndex].notifyCellValue(str, stdFont);
+            }
+        } else if (cellValue instanceof OffsetDateTime offsetDateTime) {
+            LocalDateTime dateTime = (LocalDateTime) dateTimeTransformations.transformToType(offsetDateTime,
+                    LocalDateTime.class,
+                    currentAuthentication.getTimeZone().toZoneId());
+
+            cell.setCellValue(dateTime);
+            cell.setCellStyle(dateTimeFormatCellStyle);
+
+            if (sizers[sizersIndex].isNotificationRequired(notificationRequired)) {
+                String str = datatypeRegistry.get(LocalDateTime.class).format(dateTime);
+                sizers[sizersIndex].notifyCellValue(str, stdFont);
+            }
         } else if (cellValue instanceof Boolean) {
             String str = "";
             if (sizersIndex == 0) {
@@ -575,8 +744,14 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
             if (sizers[sizersIndex].isNotificationRequired(notificationRequired)) {
                 sizers[sizersIndex].notifyCellValue(str, stdFont);
             }
-        } else if (cellValue instanceof Collection) {
-            String str = "";
+        } else if (cellValue instanceof Collection<?> entitiesCollection) {
+            // only a collection of entities is supported
+            String instanceName = entitiesCollection.stream()
+                    .map(metadataTools::getInstanceName)
+                    .collect(Collectors.joining(", "));
+
+            String str = sizersIndex == 0 ? createSpaceString(level) + instanceName : instanceName;
+            str = str + childCountValue;
             cell.setCellValue(createStringCellValue(str));
             if (sizers[sizersIndex].isNotificationRequired(notificationRequired)) {
                 sizers[sizersIndex].notifyCellValue(str, stdFont);
@@ -686,5 +861,74 @@ public class ExcelExporter extends AbstractDataGridExporter<ExcelExporter> {
         if (wb instanceof SXSSFWorkbook) {
             ((SXSSFWorkbook) wb).dispose();
         }
+    }
+
+    protected List<Grid.Column<Object>> getColumns(Grid<Object> grid,
+                                                   Predicate<Grid.Column<Object>> columnFilter,
+                                                   ExportMode exportMode) {
+        if (exportMode != ExportMode.CURRENT_PAGE
+                && grid instanceof AbstractGroupDataGridAdapter<Object> groupDataGrid) {
+            List<Grid.Column<Object>> columns = grid.getColumns().stream()
+                    .filter(columnFilter)
+                    .toList();
+
+            return getColumnsIncludingGrouping(groupDataGrid, getOrderedColumns(grid), columns);
+        }
+        return getColumns(grid, columnFilter);
+    }
+
+    protected List<Grid.Column<Object>> getColumns(Grid<Object> grid, Predicate<Grid.Column<Object>> columnFilter) {
+        List<Grid.Column<Object>> columns = grid.getColumns().stream()
+                .filter(columnFilter)
+                .toList();
+
+        List<Grid.Column<Object>> allColumns = getOrderedColumns(grid);
+        if (allColumns.isEmpty()) {
+            return columns;
+        }
+
+        return allColumns.stream()
+                .filter(columns::contains)
+                .toList();
+    }
+
+    protected List<Grid.Column<Object>> getColumnsIncludingGrouping(AbstractGroupDataGridAdapter<Object> groupDataGrid,
+                                                                    List<Grid.Column<Object>> allColumns,
+                                                                    List<Grid.Column<Object>> columns) {
+        List<Grid.Column<Object>> columnsToExport = allColumns.stream()
+                .filter(columns::contains)
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        // Include grouping columns instead of group column
+        int groupIndex = 0;
+        Grid.Column<?> groupColumn = null;
+        for (int i = 0; i < columnsToExport.size(); i++) {
+            Grid.Column<Object> column = columnsToExport.get(i);
+            if (groupDataGrid.isGroupColumn(column)) {
+                groupIndex = i;
+                groupColumn = column;
+                break;
+            }
+        }
+        Collection<Grid.Column<Object>> groupingColumns = groupDataGrid.getGroupingColumns();
+        columnsToExport.addAll(groupIndex, groupingColumns);
+        columnsToExport.remove(groupColumn);
+        return Collections.unmodifiableList(columnsToExport);
+    }
+
+    /**
+     * Returns a list of all columns (including those hidden by security) in the correct order for Jmix extensions
+     * of {@link Grid}. Otherwise, it returns {@link Grid#getColumns()}.
+     *
+     * @param grid grid from which to get all columns
+     * @return all (with hidden by security) columns list that has correct order
+     */
+    protected List<Grid.Column<Object>> getOrderedColumns(Grid<Object> grid) {
+        if (grid instanceof DataGrid<Object> dataGrid) {
+            return dataGrid.getAllColumns();
+        } else if (grid instanceof TreeDataGrid<Object> treeDataGrid) {
+            return treeDataGrid.getAllColumns();
+        }
+        return grid.getColumns();
     }
 }

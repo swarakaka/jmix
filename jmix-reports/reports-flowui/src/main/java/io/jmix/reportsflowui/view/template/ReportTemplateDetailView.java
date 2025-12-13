@@ -19,12 +19,12 @@ package io.jmix.reportsflowui.view.template;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.icon.Icon;
-import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.icon.FontIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouteAlias;
 import io.jmix.core.Metadata;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.flowui.Dialogs;
@@ -42,6 +42,7 @@ import io.jmix.flowui.kit.component.codeeditor.JmixCodeEditor;
 import io.jmix.flowui.kit.component.upload.event.FileUploadFailedEvent;
 import io.jmix.flowui.kit.component.upload.event.FileUploadStartedEvent;
 import io.jmix.flowui.kit.component.upload.event.FileUploadSucceededEvent;
+import io.jmix.flowui.kit.icon.JmixFontIcon;
 import io.jmix.flowui.model.InstanceContainer;
 import io.jmix.flowui.view.*;
 import io.jmix.reports.ReportPrintHelper;
@@ -50,6 +51,7 @@ import io.jmix.reports.entity.Report;
 import io.jmix.reports.entity.ReportOutputType;
 import io.jmix.reports.entity.ReportTemplate;
 import io.jmix.reportsflowui.constant.ReportStyleConstants;
+import io.jmix.reportsflowui.helper.OutputTypeHelper;
 import io.jmix.reportsflowui.helper.ReportScriptEditor;
 import io.jmix.security.constraint.PolicyStore;
 import io.jmix.security.constraint.SecureOperations;
@@ -64,7 +66,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-@Route(value = "reports/templates/:id", layout = DefaultMainViewParent.class)
+@RouteAlias(value = "reports/templates/:id", layout = DefaultMainViewParent.class)
+@Route(value = "report/templates/:id", layout = DefaultMainViewParent.class)
 @ViewController("report_ReportTemplate.detail")
 @ViewDescriptor("report-template-detail-view.xml")
 @EditedEntityContainer("reportTemplateDc")
@@ -72,6 +75,7 @@ import java.util.List;
 public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate> {
 
     public static final String CUSTOM_DEFINE_BY_PROPERTY = "customDefinedBy";
+    public static final String REPORT_CONTENT_PROPERTY = "content";
     public static final String CUSTOM_PROPERTY = "custom";
     public static final String REPORT_OUTPUT_TYPE_PROPERTY = "reportOutputType";
 
@@ -103,7 +107,7 @@ public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate>
     @ViewComponent
     protected InstanceContainer<ReportTemplate> reportTemplateDc;
 
-    @Autowired
+    @ViewComponent
     protected MessageBundle messageBundle;
     @Autowired
     protected Dialogs dialogs;
@@ -119,8 +123,10 @@ public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate>
     protected UiComponents uiComponents;
     @Autowired
     protected ReportScriptEditor reportScriptEditor;
+    @Autowired
+    protected OutputTypeHelper outputTypeHelper;
 
-    protected Icon customDefinitionHelpIcon;
+    protected FontIcon customDefinitionHelpIcon;
     protected TableEditFragment tableEditComposite;
     @ViewComponent
     private VerticalLayout customDefinitionBox;
@@ -134,6 +140,7 @@ public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate>
                 ? messageBundle.getMessage("isGroovyRadioButtonGroup.groovyType")
                 : messageBundle.getMessage("isGroovyRadioButtonGroup.freemarkerType"));
         initOutputTypeList();
+        initCustomDefinedByList();
         initOutputNamePatternField();
         initCustomDefinitionHelpIcon();
     }
@@ -244,7 +251,7 @@ public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate>
     }
 
     protected void initCustomDefinitionHelpIcon() {
-        customDefinitionHelpIcon = VaadinIcon.QUESTION_CIRCLE.create();
+        customDefinitionHelpIcon = JmixFontIcon.QUESTION_CIRCLE.create();
         customDefinitionHelpIcon.addClassNames(
                 ReportStyleConstants.FIELD_ICON_SIZE_CLASS_NAME,
                 ReportStyleConstants.FIELD_ICON_CLASS_NAME
@@ -260,7 +267,7 @@ public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate>
         descriptionEditBox.add(tableEditComposite);
     }
 
-    protected void onCustomDefinitionHelpIconClick(ClickEvent<Icon> event) {
+    protected void onCustomDefinitionHelpIconClick(ClickEvent<?> event) {
         openCustomDefinitionHelpDialog();
     }
 
@@ -277,13 +284,13 @@ public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate>
     }
 
     protected void initOutputNamePatternField() {
-        Icon icon = VaadinIcon.QUESTION_CIRCLE.create();
+        FontIcon icon = JmixFontIcon.QUESTION_CIRCLE.create();
         icon.addClickListener(this::onOutputNamePatternHelpIconClick);
         icon.addClassName(ReportStyleConstants.FIELD_ICON_CLASS_NAME);
         outputNamePatternField.setSuffixComponent(icon);
     }
 
-    protected void onOutputNamePatternHelpIconClick(ClickEvent<Icon> event) {
+    protected void onOutputNamePatternHelpIconClick(ClickEvent<?> event) {
         dialogs.createMessageDialog()
                 .withHeader(messageBundle.getMessage("outputNamePatternField.helpIcon.dialog.header"))
                 .withContent(new Html(messageBundle.getMessage("outputNamePatternField.helpIcon.dialog.content")))
@@ -333,6 +340,10 @@ public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate>
                 }
                 break;
             }
+            case REPORT_CONTENT_PROPERTY: {
+                templateFileEditor.setValue(new String(reportTemplate.getContent(), StandardCharsets.UTF_8));
+                break;
+            }
             case CUSTOM_PROPERTY: {
                 setupVisibility(Boolean.TRUE.equals(event.getValue()), reportTemplate.getReportOutputType());
                 break;
@@ -345,13 +356,15 @@ public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate>
     }
 
     protected void initOutputTypeList() {
-        ArrayList<ReportOutputType> outputTypes = new ArrayList<>(Arrays.asList(ReportOutputType.values()));
+        List<ReportOutputType> supportedOutputTypes = outputTypeHelper.getSupportedOutputTypes();
+        outputTypeField.setItems(supportedOutputTypes);
+    }
 
-        // Unsupported types for now
-        outputTypes.remove(ReportOutputType.CHART);
-        outputTypes.remove(ReportOutputType.PIVOT_TABLE);
+    protected void initCustomDefinedByList() {
+        ArrayList<CustomTemplateDefinedBy> options = new ArrayList<>(Arrays.asList(CustomTemplateDefinedBy.values()));
+        options.remove(CustomTemplateDefinedBy.DELEGATE); // can't set it up in runtime editor
 
-        outputTypeField.setItems(outputTypes);
+        customDefinedByField.setItems(options);
     }
 
     protected void initTemplateEditor(ReportTemplate reportTemplate) {
@@ -363,11 +376,26 @@ public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate>
         ReportOutputType outputType = ReportOutputType.getTypeFromExtension(extension.toUpperCase());
         visibleTemplateEditor(outputType);
         if (hasHtmlCsvTemplateOutput(outputType)) {
-            String templateContent = new String(reportTemplate.getContent(), StandardCharsets.UTF_8);
-            templateFileEditor.setValue(templateContent);
+            templateFileEditor.setValue(new String(reportTemplate.getContent(), StandardCharsets.UTF_8));
         }
         templateFileEditor.setReadOnly(
                 !secureOperations.isEntityUpdatePermitted(metadata.getClass(reportTemplate), policyStore));
+
+        templateFileEditor.addValueChangeListener(e -> {
+            if (hasHtmlCsvTemplateOutput(outputType)) {
+                reportTemplate.setContent(e.getValue().getBytes(StandardCharsets.UTF_8));
+            }
+        });
+
+        templateFileEditor.setMode(getCodeEditorMode(reportTemplate));
+    }
+
+    protected CodeEditorMode getCodeEditorMode(ReportTemplate reportTemplate) {
+        if (io.jmix.reports.yarg.structure.ReportOutputType.html == reportTemplate.getOutputType()) {
+            return CodeEditorMode.HTML;
+        }
+
+        return CodeEditorMode.TEXT;
     }
 
     protected void visibleTemplateEditor(@Nullable ReportOutputType outputType) {
@@ -383,11 +411,14 @@ public class ReportTemplateDetailView extends StandardDetailView<ReportTemplate>
     public void onTemplateFileEditorFullScreenBtnClick(final ClickEvent<Button> event) {
         String extension = FilenameUtils.getExtension(templateUploadField.getFileName());
         ReportOutputType outputType = ReportOutputType.getTypeFromExtension(extension.toUpperCase());
+        ReportTemplate reportTemplate = getEditedEntity();
         reportScriptEditor.create(this)
                 .withTitle(messageBundle.getMessage("templateFileEditorFullScreen.title"))
-                .withValue(new String(reportTemplateDc.getItem().getContent(), StandardCharsets.UTF_8))
+                .withValue(new String(reportTemplate.getContent(), StandardCharsets.UTF_8))
                 .withEditorMode(outputType == ReportOutputType.HTML ? CodeEditorMode.HTML : CodeEditorMode.TEXT)
-                .withCloseOnClick(value -> reportTemplateDc.getItem().setContent(value.getBytes(StandardCharsets.UTF_8)))
+                .withCloseOnClick(value -> {
+                    reportTemplate.setContent(value.getBytes(StandardCharsets.UTF_8));
+                })
                 .withHelpOnClick(() -> {
                 })
                 .open();

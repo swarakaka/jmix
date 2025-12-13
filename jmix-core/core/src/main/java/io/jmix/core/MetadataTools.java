@@ -42,8 +42,8 @@ import io.jmix.core.metamodel.model.Range;
 import io.jmix.core.security.CurrentAuthentication;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.PostConstruct;
-import jakarta.persistence.Id;
 import jakarta.persistence.*;
+import jakarta.persistence.Id;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
@@ -167,9 +167,9 @@ public class MetadataTools {
 //        }
 
         if (range.isEnum()) {
-            return messages.getMessage((Enum) value);
+            return messages.getMessage((Enum<?>) value);
         } else if (value instanceof Entity) {
-            return getInstanceName((Entity) value);
+            return getInstanceName(value);
         } else if (value instanceof Collection) {
             @SuppressWarnings("unchecked")
             Collection<Object> collection = (Collection<Object>) value;
@@ -177,7 +177,7 @@ public class MetadataTools {
                     .map(this::format)
                     .collect(Collectors.joining(", "));
         } else if (range.isDatatype()) {
-            Datatype datatype = range.asDatatype();
+            Datatype<?> datatype = range.asDatatype();
             if (datatype instanceof TimeZoneAwareDatatype) {
                 Boolean ignoreUserTimeZone = getMetaAnnotationValue(property, IgnoreUserTimeZone.class);
                 if (!Boolean.TRUE.equals(ignoreUserTimeZone)) {
@@ -201,9 +201,9 @@ public class MetadataTools {
         if (value == null) {
             return "";
         } else if (value instanceof Entity) {
-            return getInstanceName((Entity) value);
+            return getInstanceName(value);
         } else if (value instanceof Enum) {
-            return messages.getMessage((Enum) value, currentAuthentication.getLocale());
+            return messages.getMessage((Enum<?>) value, currentAuthentication.getLocale());
         } else if (value instanceof Collection) {
             @SuppressWarnings("unchecked")
             Collection<Object> collection = (Collection<Object>) value;
@@ -211,7 +211,7 @@ public class MetadataTools {
                     .map(this::format)
                     .collect(Collectors.joining(", "));
         } else {
-            Datatype datatype = datatypeRegistry.find(value.getClass());
+            Datatype<?> datatype = datatypeRegistry.find(value.getClass());
             if (datatype != null) {
                 return datatype.format(value, currentAuthentication.getLocale());
             }
@@ -430,20 +430,6 @@ public class MetadataTools {
     }
 
     /**
-     * @deprecated Use {@code metaProperty.getType() == MetaProperty.Type.EMBEDDED}
-     *
-     * Determine whether the given property denotes an embedded object.
-     *
-     * @see Embedded
-     * @see EmbeddedId
-     */
-    @Deprecated
-    public boolean isEmbedded(MetaProperty metaProperty) {
-        Objects.requireNonNull(metaProperty, "metaProperty is null");
-        return metaProperty.getType() == MetaProperty.Type.EMBEDDED;
-    }
-
-    /**
      * Determine whether the given property is a LOB.
      *
      * @see Lob
@@ -501,9 +487,9 @@ public class MetadataTools {
         return Boolean.TRUE.equals(metaProperty.getAnnotatedElement().isAnnotationPresent(Secret.class));
     }
 
-    public Map<String, Object> getMetaAnnotationAttributes(Map<String, Object> metaAnnotations, Class metaAnnotationClass) {
+    public Map<String, Object> getMetaAnnotationAttributes(Map<String, Object> metaAnnotations, Class<?> metaAnnotationClass) {
         @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map) metaAnnotations.get(metaAnnotationClass.getName());
+        Map<String, Object> map = (Map<String, Object>) metaAnnotations.get(metaAnnotationClass.getName());
         return map != null ? map : Collections.emptyMap();
     }
 
@@ -547,13 +533,13 @@ public class MetadataTools {
      * @param annotationClass annotation class
      * @return true if the annotation is present
      */
-    public boolean isAnnotationPresent(Class javaClass, String property, Class<? extends Annotation> annotationClass) {
+    public boolean isAnnotationPresent(Class<?> javaClass, String property, Class<? extends Annotation> annotationClass) {
         Field field;
         try {
             field = javaClass.getDeclaredField(property);
             return field.isAnnotationPresent(annotationClass);
         } catch (NoSuchFieldException e) {
-            Class superclass = javaClass.getSuperclass();
+            Class<?> superclass = javaClass.getSuperclass();
             while (superclass != null) {
                 try {
                     field = superclass.getDeclaredField(property);
@@ -1019,7 +1005,7 @@ public class MetadataTools {
         checkNotNullArgument(visitor, "visitor is null");
         EntityPreconditions.checkEntityType(entity);
 
-        internalTraverseAttributesByFetchPlan(fetchPlan, (Entity) entity, visitor, new HashMap<>(), false);
+        internalTraverseAttributesByFetchPlan(fetchPlan, entity, visitor, new HashMap<>(), false);
     }
 
     /**
@@ -1037,7 +1023,7 @@ public class MetadataTools {
         checkNotNullArgument(visitor, "visitor is null");
         EntityPreconditions.checkEntityType(entity);
 
-        internalTraverseAttributesByFetchPlan(fetchPlan, (Entity) entity, visitor, new HashMap<>(), checkLoaded);
+        internalTraverseAttributesByFetchPlan(fetchPlan, entity, visitor, new HashMap<>(), checkLoaded);
     }
 
     /**
@@ -1185,6 +1171,8 @@ public class MetadataTools {
 
     /**
      * Makes a deep copy of the source entity. All referenced entities and collections will be copied as well.
+     *
+     * @see Copier
      */
     @SuppressWarnings("unchecked")
     public <T> T deepCopy(T source) {
@@ -1272,7 +1260,7 @@ public class MetadataTools {
                     Object value = EntityValues.getValue(entity, property.getName());
                     if (value != null) {
                         if (value instanceof Collection) {
-                            for (Object item : ((Collection) value)) {
+                            for (Object item : ((Collection<?>) value)) {
                                 internalTraverseAttributes((Entity) item, visitor, visited);
                             }
                         } else {
@@ -1285,7 +1273,7 @@ public class MetadataTools {
     }
 
     protected void internalTraverseAttributesByFetchPlan(FetchPlan fetchPlan, Object entity, EntityAttributeVisitor
-            visitor,
+                                                                 visitor,
                                                          Map<Object, Set<FetchPlan>> visited, boolean checkLoaded) {
         Set<FetchPlan> fetchPlans = visited.get(entity);
         if (fetchPlans == null) {
@@ -1314,7 +1302,7 @@ public class MetadataTools {
 
             if (value != null && propertyFetchPlan != null) {
                 if (value instanceof Collection) {
-                    for (Object item : ((Collection) value)) {
+                    for (Object item : ((Collection<?>) value)) {
                         if (item instanceof Entity)
                             internalTraverseAttributesByFetchPlan(propertyFetchPlan, item, visitor, visited, checkLoaded);
                     }
@@ -1333,7 +1321,6 @@ public class MetadataTools {
         }
     }
 
-    @SuppressWarnings("unchecked")
     protected static Object createInstanceWithId(Class<?> entityClass, Object id) {
         Object entity = createInstance(entityClass);
         EntityValues.setId(entity, id);
@@ -1347,13 +1334,10 @@ public class MetadataTools {
     }
 
     /**
-     * Returns all additional properties which are providing classes implement MetadataExtension interface
-     *
-     * @param metaClass instance MetaClass for getting additional properties
-     * @return all additional properties
+     * Returns all additional properties of the given MetaClass provided by {@link MetadataExtension}s.
      */
     public Set<MetaProperty> getAdditionalProperties(MetaClass metaClass) {
-        if (metadataExtensions == null) {
+        if (metadataExtensions == null || metadataExtensions.isEmpty()) {
             return Collections.emptySet();
         }
         return metadataExtensions.stream()
@@ -1362,11 +1346,10 @@ public class MetadataTools {
     }
 
     /**
-     * @param metaClass
-     * @param propertyName
+     * Returns true if the given MetaClass has an additional property with the given name.
      */
     public boolean isAdditionalProperty(MetaClass metaClass, String propertyName) {
-        if (metadataExtensions == null)
+        if (metadataExtensions == null || metadataExtensions.isEmpty())
             return false;
 
         for (MetadataExtension extension : metadataExtensions) {

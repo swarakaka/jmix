@@ -21,6 +21,7 @@
                   class="test_support.entity.sales.Order">
             <fetchPlan extends="_base">
                 <property name="user" fetchPlan="_base"/>
+                <property name="orderLines" fetchPlan="_base"/>
             </fetchPlan>
             <loader id="orderDl">
                 <query>
@@ -33,7 +34,7 @@
         <action id="buttonAction"
                 text="Action Text"
                 description="Action Description"
-                icon="USER"
+                icon="vaadin:user"
                 actionVariant="PRIMARY"/>
     </actions>
     <layout>
@@ -57,7 +58,7 @@
               classNames="cssClassName1, cssClassName2"
               css="color: red;"
               color="purple"
-              icon="CHECK"
+              icon="vaadin:check"
               size="2em"
               visible="true"/>
 
@@ -130,7 +131,7 @@
                 disableOnClick="true"
                 enabled="true"
                 height="50px"
-                icon="YOUTUBE"
+                icon="vaadin:youtube"
                 iconAfterText="true"
                 shortcutCombination="ALT-L"
                 maxHeight="55px"
@@ -186,6 +187,34 @@
         </checkbox>
         <checkbox id="checkBoxWithDataId" dataContainer="orderDc" property="user.active"/>
 
+        <switch id="switchId"
+                ariaLabel="ariaLabelString"
+                autofocus="true"
+                classNames="cssClassName1, cssClassName2"
+                css="color: red;"
+                enabled="true"
+                height="50px"
+                label="labelString"
+                maxHeight="55px"
+                maxWidth="120px"
+                minHeight="40px"
+                minWidth="80px"
+                readOnly="true"
+                tabIndex="3"
+                value="true"
+                visible="true"
+                width="100px">
+            <tooltip text="tooltipText"
+                     focusDelay="1"
+                     hideDelay="2"
+                     hoverDelay="3"
+                     manual="true"
+                     opened="true"
+                     position="BOTTOM"
+            />
+        </switch>
+        <switch id="switchWithDataId" dataContainer="orderDc" property="user.active"/>
+
         <comboBox id="comboBoxId"
                   allowCustomValue="true"
                   autoOpen="true"
@@ -216,7 +245,9 @@
                   themeNames="small, align-center"
                   title="titleString"
                   visible="true"
-                  width="100px">
+                  width="100px"
+                  overlayClass="overlayClassName"
+                  overlayWidth="300px">
             <tooltip text="tooltipText"
                      focusDelay="1"
                      hideDelay="2"
@@ -529,6 +560,10 @@
                 themeNames="helper-above-field align-center"
                 emptySelectionCaption="emptySelectionString"
                 emptySelectionAllowed="true"
+                overlayClass="overlayClassName"
+                overlayWidth="300px"
+                noVerticalOverlap="true"
+
                 dataContainer="orderDc"
                 property="number">
             <tooltip text="tooltipText"
@@ -558,10 +593,12 @@
                   label="labelString"
                   maxHeight="55px"
                   maxLength="50"
+                  maxRows="10"
                   maxWidth="120px"
                   minLength="2"
                   minHeight="40px"
                   minWidth="80px"
+                  minRows="5"
                   pattern="patternString"
                   placeholder="placeholderString"
                   readOnly="true"
@@ -660,8 +697,8 @@
                      dataContainer="orderDc"
                      property="number">
             <actions>
-                <action id="action1" icon="GAMEPAD"/>
-                <action id="action2" icon="DIPLOMA"/>
+                <action id="action1" icon="vaadin:gamepad"/>
+                <action id="action2" icon="vaadin:diploma"/>
             </actions>
             <tooltip text="tooltipText"
                      focusDelay="1"
@@ -700,8 +737,8 @@
                           dataContainer="orderDc"
                           property="orderLines">
             <actions>
-                <action id="action1" icon="GAMEPAD"/>
-                <action id="action2" icon="DIPLOMA"/>
+                <action id="action1" icon="vaadin:gamepad"/>
+                <action id="action2" icon="vaadin:diploma"/>
             </actions>
             <tooltip text="tooltipText"
                      focusDelay="1"
@@ -739,8 +776,8 @@
 
                       dataContainer="orderDc" property="customer">
             <actions>
-                <action id="action1" icon="GAMEPAD" type="entity_lookup"/>
-                <action id="action2" icon="DIPLOMA" type="entity_clear"/>
+                <action id="action1" icon="vaadin:gamepad" type="entity_lookup"/>
+                <action id="action2" icon="vaadin:diploma" type="entity_clear"/>
             </actions>
             <tooltip text="tooltipText"
                      focusDelay="1"
@@ -783,8 +820,8 @@
                         visible="true"
                         width="100px">
             <actions>
-                <action id="action1" icon="GAMEPAD"/>
-                <action id="action2" icon="DIPLOMA"/>
+                <action id="action1" icon="vaadin:gamepad"/>
+                <action id="action2" icon="vaadin:diploma"/>
             </actions>
             <tooltip text="tooltipText"
                      focusDelay="1"
@@ -824,6 +861,8 @@
                         title="titleString"
                         visible="true"
                         width="100px"
+                        overlayClass="overlayClassName"
+                        overlayWidth="300px"
 
                         dataContainer="orderDc" property="customer">
             <tooltip text="tooltipText"
@@ -838,13 +877,91 @@
 
         <entityComboBox id="metaClassComboBoxId" metaClass="test_Order"/>
 
+        <userMenu id="userMenu"
+                  classNames="cssClassName1, cssClassName2"
+                  css="color: red;"
+                  enabled="true"
+                  openOnHover="true"
+                  tabIndex="3"
+                  themeNames="small primary"
+                  title="dropdownButtonTitle"
+                  visible="true"
+                  overlayClass="overlayClassName">
+            <items>
+                <actionItem id="firstActionItem">
+                    <action id="action2" icon="vaadin:diploma"/>
+                </actionItem>
+                <separator/>
+                <actionItem id="secondActionItem" ref="buttonAction"/>
+                <componentItem id="componentItem">
+                    <span text="content"/>
+                </componentItem>
+                <textItem id="textItem" text="textItemContent" icon="vaadin:file"/>
+                <viewItem id="viewItem" text="viewItemText"
+                          viewClass="component_xml_load.screen.ComponentView"
+                          openMode="DIALOG"/>
+            </items>
+        </userMenu>
+
+        <!-- Tests correct loading of nested items -->
+        <userMenu id="userMenu4"
+                  themeNames="tertiary">
+            <items>
+                <separator/>
+
+                <textItem id="textItem" text="Text Item" icon="vaadin:file-font"
+                          themeNames="non-checkable">
+                    <items>
+                        <actionItem id="actionItem"
+                                    themeNames="non-checkable">
+                            <action id="actionItemAction" text="Action Item" icon="vaadin:file-code"/>
+                        </actionItem>
+
+                        <separator/>
+
+                        <componentItem id="componentItem"
+                                       themeNames="non-checkable">
+                            <hbox>
+                                <icon icon="FILE_MOVIE"/>
+                                <span text="Component Item"/>
+                            </hbox>
+
+                            <items>
+                                <textItem id="nestedTextItem" text="Nested Text Item" icon="vaadin:file-code">
+                                    <items>
+                                        <textItem id="nestedTextItem1" text="Nested Text Item"/>
+                                        <separator/>
+                                        <actionItem id="nestedActionItem1" ref="buttonAction"/>
+                                    </items>
+                                </textItem>
+
+                                <separator/>
+
+                                <viewItem id="viewItem"
+                                          text="View Item"
+                                          icon="vaadin:users"
+                                          viewClass="component_xml_load.screen.ComponentView"
+                                          openMode="DIALOG"
+                                          themeNames="non-checkable"/>
+                            </items>
+                        </componentItem>
+                    </items>
+                </textItem>
+
+                <separator/>
+
+                <textItem id="textItem2" text="Text Item" icon="vaadin:file-font"
+                          themeNames="non-checkable"/>
+            </items>
+        </userMenu>
+
         <dropdownButton id="dropdownButtonId"
                         classNames="cssClassName1, cssClassName2"
                         css="color: red;"
                         dropdownIndicatorVisible="false"
                         enabled="true"
                         height="50px"
-                        icon="GAMEPAD"
+                        icon="vaadin:gamepad"
                         maxHeight="55px"
                         maxWidth="120px"
                         minHeight="40px"
@@ -859,7 +976,7 @@
                         width="100px">
             <items>
                 <actionItem id="firstActionItem">
-                    <action id="action2" icon="DIPLOMA"/>
+                    <action id="action2" icon="vaadin:diploma"/>
                 </actionItem>
                 <separator/>
                 <actionItem id="secondActionItem" ref="buttonAction"/>
@@ -874,11 +991,11 @@
                      action="buttonAction"
                      classNames="cssClassName1, cssClassName2"
                      css="color: red;"
-                     dropdownIcon="CHECK"
+                     dropdownIcon="vaadin:check"
                      shortcutCombination="ALT-L"
                      enabled="true"
                      height="50px"
-                     icon="GAMEPAD"
+                     icon="vaadin:gamepad"
                      maxHeight="55px"
                      maxWidth="120px"
                      minHeight="40px"
@@ -893,7 +1010,7 @@
                      width="100px">
             <items>
                 <actionItem id="firstActionItem">
-                    <action id="action2" icon="DIPLOMA"/>
+                    <action id="action2" icon="vaadin:diploma"/>
                 </actionItem>
                 <separator/>
                 <actionItem id="secondActionItem" ref="buttonAction"/>
@@ -911,7 +1028,8 @@
                 css="color: red;"
                 dropAllowed="true"
                 dropLabel="dropLabelString"
-                dropLabelIcon="UPLOAD"
+                dropLabelIcon="vaadin:upload"
+                enabled="true"
                 height="50px"
                 maxFiles="5"
                 maxFileSize="10480000"
@@ -920,7 +1038,7 @@
                 minHeight="40px"
                 minWidth="80px"
                 receiverType="MULTI_FILE_MEMORY_BUFFER"
-                uploadIcon="UPLOAD_ALT"
+                uploadIcon="vaadin:upload-alt"
                 uploadText="uploadTextString"
                 visible="false"
                 width="100px"/>
@@ -931,6 +1049,7 @@
         <codeEditor id="codeEditorId"
                     classNames="cssClassName1, cssClassName2"
                     css="color: red;"
+                    defaultSuggestionsEnabled="true"
                     enabled="true"
                     errorMessage="errorMessageString"
                     fontSize="20"
@@ -939,6 +1058,7 @@
                     highlightActiveLine="false"
                     highlightGutterLine="false"
                     label="labelString"
+                    liveSuggestionsEnabled="true"
                     maxHeight="55px"
                     maxWidth="120px"
                     minHeight="40px"
@@ -951,6 +1071,7 @@
                     showGutter="false"
                     showLineNumbers="false"
                     showPrintMargin="false"
+                    suggestOn="{E}\."
                     tabIndex="3"
                     textWrap="true"
                     useSoftTabs="false"

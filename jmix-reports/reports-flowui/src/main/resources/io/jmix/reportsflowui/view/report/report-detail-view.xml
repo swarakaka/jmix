@@ -35,14 +35,11 @@
 
         <collection id="availableParentBandsDc" class="io.jmix.reports.entity.BandDefinition"/>
         <collection id="groupsDc" class="io.jmix.reports.entity.ReportGroup">
-            <loader id="groupsDl">
-                <query>
-                    <![CDATA[select rg from report_ReportGroup rg order by rg.createTs asc]]>
-                </query>
-            </loader>
+            <loader id="groupsDl"/>
         </collection>
     </data>
     <facets>
+        <settings auto="true"/>
         <dataLoadCoordinator auto="true"/>
     </facets>
     <actions>
@@ -61,17 +58,21 @@
                             <responsiveStep minWidth="50em" columns="2"/>
                         </responsiveSteps>
                         <textField id="nameField" property="name"
-                                   requiredMessage="msg://detailsTab.nameField.requiredMessage"/>
+                                   requiredMessage="msg://detailsTab.nameField.requiredMessage" required="true"/>
                         <entityComboBox id="groupField"
                                         property="group"
                                         itemsContainer="groupsDc"/>
-                        <textField id="codeField" property="code"/>
+                        <textField id="codeField" property="code"
+                                   requiredMessage="msg://detailsTab.codeField.isEmpty.text" required="true"/>
                         <hbox padding="false" alignItems="BASELINE">
-                            <checkbox id="systemField" label="msg://io.jmix.reports.entity/Report.system" property="system"/>
-                            <checkbox id="restAccessField" label="msg://io.jmix.reports.entity/Report.restAccess" property="restAccess"/>
+                            <checkbox id="systemField" label="msg://io.jmix.reports.entity/Report.system"
+                                      property="system"/>
+                            <checkbox id="restAccessField" label="msg://io.jmix.reports.entity/Report.restAccess"
+                                      property="restAccess"/>
                         </hbox>
                         <textArea id="descriptionField" property="description" minHeight="9.5em"/>
-                        <textArea id="localeTextField" property="localeNames" label="msg://nameLocale" minHeight="9.5em"/>
+                        <textArea id="localeTextField" property="localeNames" label="msg://nameLocale"
+                                  minHeight="9.5em"/>
                     </formLayout>
                 </vbox>
             </tab>
@@ -96,7 +97,7 @@
                                 <action id="downBand" type="list_itemTracking" icon="ARROW_DOWN"
                                         description="msg://bandsTab.downBand.tooltipText"/>
                             </actions>
-                            <columns>
+                            <columns sortable="false">
                                 <column property="name"/>
                             </columns>
                         </treeDataGrid>
@@ -125,20 +126,20 @@
                                     <vbox id="dataSetScriptBox" padding="false" expand="dataSetScriptCodeEditor"
                                           spacing="false"
                                           height="100%">
-                                        <div width="100%" classNames="flex, justify-end">
+                                        <div width="100%" classNames="flex, justify-between">
+                                            <nativeLabel text="msg://report.groovyScript.title"
+                                                         setFor="jsonGroovyCodeEditor"/>
                                             <button id="dataSetScriptFullScreenBtn" text="msg:///fullScreenBtn.title"
                                                     themeNames="tertiary-inline"/>
                                         </div>
                                         <div width="100%" classNames="flex, items-start">
                                             <codeEditor id="dataSetScriptCodeEditor"
-                                                        label="msg://bandsTab.dataSetTypeLayout.dataSetScriptField.label"
                                                         width="100%"
                                                         height="13em"
                                                         dataContainer="dataSetsDc"
                                                         property="text"/>
                                             <button id="dataSetScriptCodeEditorHelpBtn"
                                                     themeNames="icon, tertiary-inline"
-                                                    classNames="mt-xl"
                                                     icon="QUESTION_CIRCLE"/>
                                         </div>
                                         <formLayout id="textParamsForm" dataContainer="dataSetsDc" width="100%">
@@ -196,32 +197,6 @@
                                                       dataContainer="dataSetsDc"
                                                       label="msg://bandsTab.dataSetTypeLayout.jsonSourceTypeField.label"
                                                       property="jsonSourceType"/>
-                                            <responsiveSteps>
-                                                <responsiveStep minWidth="0" columns="1"/>
-                                                <responsiveStep minWidth="30em" columns="2"/>
-                                            </responsiveSteps>
-                                        </formLayout>
-                                        <div width="100%" classNames="flex, justify-end">
-                                            <button id="jsonGroovyCodeEditorFullScreenBtn"
-                                                    text="msg:///fullScreenBtn.title"
-                                                    themeNames="tertiary-inline"/>
-                                        </div>
-                                        <div width="100%" classNames="flex, items-start">
-                                            <codeEditor id="jsonGroovyCodeEditor"
-                                                        width="100%"
-                                                        dataContainer="dataSetsDc"
-                                                        mode="GROOVY"
-                                                        property="jsonSourceText"/>
-                                            <button id="jsonGroovyCodeCodeEditorHelpBtn"
-                                                    themeNames="icon, tertiary-inline"
-                                                    icon="QUESTION_CIRCLE"/>
-                                        </div>
-                                        <textArea id="jsonSourceURLTextArea" width="100%"
-                                                  dataContainer="dataSetsDc"
-                                                  label="msg://bandsTab.dataSetTypeLayout.jsonSourceURLTextArea.label"
-                                                  property="jsonSourceText" required="true"
-                                                  requiredMessage="msg://bandsTab.dataSetTypeLayout.jsonSourceURLTextArea.requiredMessage"/>
-                                        <formLayout id="jsonQueryParameterForm">
                                             <entityComboBox id="jsonQueryParameterField"
                                                             dataContainer="dataSetsDc"
                                                             label="msg://bandsTab.dataSetTypeLayout.jsonQueryParameterField.label"
@@ -232,6 +207,30 @@
                                                 <responsiveStep minWidth="30em" columns="2"/>
                                             </responsiveSteps>
                                         </formLayout>
+                                        <div id="jsonGroovyCodeEditorBox" width="100%">
+                                            <div width="100%" classNames="flex, justify-between">
+                                                <nativeLabel text="msg://report.groovyScript.title"
+                                                             setFor="jsonGroovyCodeEditor"/>
+                                                <button id="jsonGroovyCodeEditorFullScreenBtn"
+                                                        text="msg:///fullScreenBtn.title"
+                                                        themeNames="tertiary-inline"/>
+                                            </div>
+                                            <div width="100%" classNames="flex, items-start">
+                                                <codeEditor id="jsonGroovyCodeEditor"
+                                                            width="100%"
+                                                            dataContainer="dataSetsDc"
+                                                            mode="GROOVY"
+                                                            property="jsonSourceText"/>
+                                                <button id="jsonGroovyCodeEditorHelpBtn"
+                                                        themeNames="icon, tertiary-inline"
+                                                        icon="QUESTION_CIRCLE"/>
+                                            </div>
+                                        </div>
+                                        <textArea id="jsonSourceURLTextArea" width="100%"
+                                                  dataContainer="dataSetsDc"
+                                                  label="msg://bandsTab.dataSetTypeLayout.jsonSourceURLTextArea.label"
+                                                  property="jsonSourceText" required="true"
+                                                  requiredMessage="msg://bandsTab.dataSetTypeLayout.jsonSourceURLTextArea.requiredMessage"/>
                                     </vbox>
                                 </div>
                             </div>
@@ -251,6 +250,10 @@
                                             <action id="remove" type="list_remove"
                                                     description="msg://bandsTab.dataSetsDataGrid.action.remove.description"/>
                                         </actions>
+                                        <columns>
+                                            <column property="name"/>
+                                            <column property="type"/>
+                                        </columns>
                                     </dataGrid>
                                 </vbox>
                                 <div id="dataSetDetailsLayout" classNames="report-data-set-details-layout">
@@ -288,10 +291,14 @@
                                 <action id="up" type="list_itemTracking" icon="ARROW_UP"/>
                                 <action id="down" type="list_itemTracking" icon="ARROW_DOWN"/>
                             </actions>
-                            <columns resizable="true">
+                            <columns resizable="true" sortable="false">
                                 <column property="name"/>
                                 <column property="alias"/>
                                 <column property="type"/>
+                                <column key="required"
+                                        header="msg://parametersTab.inputParameterDataGrid.required"/>
+                                <column key="validationOn"
+                                        header="msg://parametersTab.inputParameterDataGrid.validationOn"/>
                             </columns>
                         </dataGrid>
                     </vbox>
@@ -345,7 +352,7 @@
                             </action>
                             <action id="removeValueFormat" type="list_remove"/>
                         </actions>
-                        <columns>
+                        <columns resizable="true">
                             <column property="valueName"/>
                             <column property="formatString"/>
                         </columns>
@@ -376,6 +383,10 @@
                             <column property="code" flexGrow="0" sortable="false"/>
                             <column property="reportOutputType" flexGrow="1" sortable="false"/>
                             <column property="customDefinition" flexGrow="1" sortable="false"/>
+                            <column key="alterable" header="msg://templatesTab.templatesDataGrid.alterable"
+                                    sortable="false"/>
+                            <column key="default" header="msg://templatesTab.templatesDataGrid.default"
+                                    sortable="false"/>
                         </columns>
                     </dataGrid>
                 </vbox>
@@ -397,7 +408,7 @@
                                 <action id="add" type="list_add"/>
                                 <action id="exclude" type="list_remove" icon="CLOSE"/>
                             </actions>
-                            <columns>
+                            <columns resizable="true">
                                 <column property="roleName"/>
                                 <column property="roleCode"/>
                             </columns>
@@ -410,7 +421,7 @@
                             <button id="addReportScreenBtn" action="screenDataGrid.add"
                                     text="msg://views.add"/>
                         </hbox>
-                        <button action="screenDataGrid.remove" icon="font-icon:REMOVE"/>
+                        <button action="screenDataGrid.remove"/>
                         <dataGrid id="screenDataGrid"
                                   dataContainer="reportScreensDc"
                                   columnReorderingAllowed="false" detailsVisibleOnClick="false">
@@ -418,7 +429,7 @@
                                 <action id="add" type="list_add"/>
                                 <action id="remove" type="list_remove" icon="CLOSE"/>
                             </actions>
-                            <columns>
+                            <columns resizable="true">
                                 <column property="screenId"/>
                             </columns>
                         </dataGrid>

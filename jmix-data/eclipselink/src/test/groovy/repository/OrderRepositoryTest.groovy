@@ -46,6 +46,8 @@ class OrderRepositoryTest extends DataSpec {
     private EntityStates entityStates;
     @Autowired
     private FetchPlans fetchPlans;
+    @Autowired
+    private FetchPlanRepository fetchPlanRepository;
 
 
     private Customer customer1, customer2, customer3;
@@ -435,7 +437,7 @@ class OrderRepositoryTest extends DataSpec {
         ordersDesc[4] == order1 && ordersDesc[4].customer.address.city == "Samara"//[Samara - Fri Jan 01 00:00:00 SAMT 2010]
 
         when:
-        Iterable<SalesOrder> ordersAll = orderRepository.findAll(Sort.by(Sort.Direction.ASC, "customer.address.city", "date"))
+        List<SalesOrder> ordersAll = orderRepository.findAll(Sort.by(Sort.Direction.ASC, "customer.address.city", "date"))
         then:
         ordersAll[0] == order1
         ordersAll[1] == order2
@@ -458,6 +460,45 @@ class OrderRepositoryTest extends DataSpec {
 
     }
 
+    void 'page request works with List return type'() {
+        when:
+        Sort sort = Sort.by(Sort.Direction.ASC, "date");
+
+        def result = orderRepository.findAllByNumberLikeAndCount(
+                "1",
+                null,
+                PageRequest.of(0, 2, sort),
+                fetchPlanRepository.getFetchPlan(SalesOrder.class, FetchPlan.BASE))
+
+        then: "findAll method works"
+        result.size() == 2
+        result[0].number == "113"
+        result[1].number == "111"
+
+        when:
+        result = orderRepository.findAllByNumberLikeAndCount(
+                "1",
+                null,
+                PageRequest.of(1, 2, sort),
+                fetchPlanRepository.getFetchPlan(SalesOrder.class, FetchPlan.BASE))
+
+        then:
+        result.size() == 2
+        result[0].number == "112"
+        result[1].number == "114"
+
+        when:
+        result = orderRepository.findAllByNumberLikeAndCount(
+                "1",
+                null,
+                PageRequest.of(2, 2, sort),
+                fetchPlanRepository.getFetchPlan(SalesOrder.class, FetchPlan.BASE))
+
+        then:
+        result.size() == 0
+    }
+
+
     void 'loading after save test'() {
         setup:
         Customer customer = metadata.create(Customer.class);
@@ -473,7 +514,7 @@ class OrderRepositoryTest extends DataSpec {
         dataManager.save(customer, order)
 
         when:
-        orderRepository.save(orderRepository.create(),fetchPlans.builder(Customer.class).build())
+        orderRepository.save(orderRepository.create(), fetchPlans.builder(Customer.class).build())
         then:
         thrown(IllegalArgumentException)
 
@@ -503,7 +544,27 @@ class OrderRepositoryTest extends DataSpec {
         when:
         SalesOrder order = orderRepository.getByExtractedNumber("Use number 111 please")
         then:
-        order.number== "111"
+        order.number == "111"
+    }
+
+
+    void 'scalar queries with entity return property works correctly'() {
+        when:
+        def res = orderRepository.findOrderCountsByCustomer()
+
+        then:
+        res != null
+        res[0].getValue("customer") == customer3
+        res[0].getValue("count") == 1
+        res[0].getValue("earliestOrderDate") == null
+
+        res[2].getValue("customer") == customer1
+        res[2].getValue("count") == 2
+        res[2].getValue("earliestOrderDate") == order1.date
+
+        res[1].getValue("customer") == customer2
+        res[1].getValue("count") == 2
+        res[1].getValue("earliestOrderDate") == order3.date
     }
 
 }

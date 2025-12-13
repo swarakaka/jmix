@@ -17,6 +17,9 @@
 package oauth_token
 
 import io.jmix.core.security.event.UserDisabledEvent
+import io.restassured.filter.session.SessionFilter
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.security.core.session.SessionRegistry
@@ -26,14 +29,19 @@ import spock.lang.Ignore
 import test_support.RestSpec
 
 import static test_support.RestSpecsUtils.createRequest
-@Ignore //todo [jmix-framework/jmix#3758]
+
+
 class TokenInvalidationTest extends RestSpec {
+    private static final Logger log = LoggerFactory.getLogger(TokenInvalidationTest);
+
     @Autowired
     protected SessionRegistry sessionRegistry
     @Autowired
     protected ApplicationEventPublisher eventPublisher
 
+
     def "session associated with access token is expired"() {
+        setup:
         when:
         def response = createRequest(userToken)
                 .when()
@@ -44,7 +52,7 @@ class TokenInvalidationTest extends RestSpec {
         response.thenReturn().path('username') == "admin"
 
         when:
-        killSession('admin')
+        killSessions('admin')
 
         response = createRequest(userToken)
                 .when()
@@ -85,21 +93,8 @@ class TokenInvalidationTest extends RestSpec {
         response.then().statusCode(401)
     }
 
-    protected void killSession(String username) {
-        User principal = sessionRegistry.getAllPrincipals().stream()
-                .filter({ it instanceof User })
-                .map({ (User) it })
-                .filter({ it.getUsername() == username })
-                .findFirst()
-                .orElseThrow({ new RuntimeException("Unable to find principal") })
-
-        sessionRegistry.getAllSessions(principal, false)
-                .stream()
-                .forEach({ it.expireNow() })
-    }
 
     protected void disableUser(String username) {
-        UserDetails userDetails = userRepository.loadUserByUsername(username)
         eventPublisher.publishEvent(new UserDisabledEvent(username))
     }
 }

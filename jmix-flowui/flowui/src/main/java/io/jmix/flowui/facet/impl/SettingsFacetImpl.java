@@ -30,6 +30,7 @@ import io.jmix.flowui.facet.settings.ViewSettings;
 import io.jmix.flowui.facet.settings.ViewSettingsComponentManager;
 import io.jmix.flowui.facet.settings.ViewSettingsJson;
 import io.jmix.flowui.settings.UserSettingsCache;
+import io.jmix.flowui.settings.UserSettingsService;
 import io.jmix.flowui.sys.autowire.ReflectionCacheManager;
 import io.jmix.flowui.view.View;
 import io.jmix.flowui.view.ViewControllerUtils;
@@ -37,7 +38,6 @@ import io.jmix.flowui.view.ViewFacets;
 import org.apache.commons.collections4.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 
 import java.lang.invoke.MethodHandle;
@@ -45,6 +45,10 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+/**
+ * An implementation of the {@link SettingsFacet} interface that provides functionality
+ * for managing and applying settings related to views and their components.
+ */
 public class SettingsFacetImpl extends AbstractFacet implements SettingsFacet {
 
     private static final Logger log = LoggerFactory.getLogger(SettingsFacetImpl.class);
@@ -53,6 +57,8 @@ public class SettingsFacetImpl extends AbstractFacet implements SettingsFacet {
     protected ReflectionCacheManager reflectionCacheManager;
     protected ViewSettingsComponentManager settingsManager;
     protected UserSettingsCache userSettingsCache;
+    @Nullable
+    private final UserSettingsService userSettingsService;
 
     protected Set<String> componentIds;
     protected Set<String> excludedComponentIds;
@@ -73,12 +79,14 @@ public class SettingsFacetImpl extends AbstractFacet implements SettingsFacet {
 
     public SettingsFacetImpl(SettingsFacetUrlQueryParametersHelper settingsHelper,
                              ReflectionCacheManager reflectionCacheManager,
-                             @Autowired(required = false) UserSettingsCache userSettingsCache,
-                             @Autowired(required = false) ViewSettingsComponentManager settingsManager) {
+                             UserSettingsCache userSettingsCache,
+                             ViewSettingsComponentManager settingsManager,
+                             @Nullable UserSettingsService userSettingsService) {
         this.settingsHelper = settingsHelper;
         this.reflectionCacheManager = reflectionCacheManager;
         this.settingsManager = settingsManager;
         this.userSettingsCache = userSettingsCache;
+        this.userSettingsService = userSettingsService;
     }
 
     @Override
@@ -206,8 +214,8 @@ public class SettingsFacetImpl extends AbstractFacet implements SettingsFacet {
             subscribeViewLifecycle();
 
             if (!isSettingsEnabled()) {
-                log.warn(SettingsFacet.class.getSimpleName() + " does not work for '{}' due to starter "
-                        + "that provides the ability to work with settings is not added", owner.getId().orElse(null));
+                log.warn("SettingsFacet does not work for '{}' because UserSettingsService implementation is not available",
+                        owner.getId().orElse(null));
             }
         }
     }
@@ -331,7 +339,7 @@ public class SettingsFacetImpl extends AbstractFacet implements SettingsFacet {
     }
 
     protected boolean isSettingsEnabled() {
-        return settingsManager != null;
+        return userSettingsService != null;
     }
 
     protected Collection<Component> excludeUrlQueryParametersFacetComponents(Collection<Component> components) {

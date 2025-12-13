@@ -27,12 +27,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -61,12 +63,19 @@ public class RestInvoker implements InitializingBean {
 
     private RestClient restClient;
 
+    private String basePath;
+    private String entitiesPath;
+    private String userInfoPath;
+    private String permissionsPath;
+    private String capabilitiesPath;
+
     @Autowired
     private ApplicationContext applicationContext;
 
+
     public record LoadParams(String entityName,
                                  Object id,
-                                 @Nullable String fetchPlanName) {
+                                 @Nullable String fetchPlan) {
 
         public LoadParams(String entityName, Object id) {
             this(entityName, id, null);
@@ -78,7 +87,7 @@ public class RestInvoker implements InitializingBean {
                                  int offset,
                                  @Nullable String sort,
                                  @Nullable String filter,
-                                 @Nullable String fetchPlanName) {
+                                 @Nullable String fetchPlan) {
 
         public LoadListParams(String entityName, @Nullable String filter) {
             this(entityName, 1, 0, null, filter, null);
@@ -91,16 +100,28 @@ public class RestInvoker implements InitializingBean {
 
     @Override
     public void afterPropertiesSet() {
-        String authenticatorBeanName = applicationContext.getEnvironment().getProperty(
+        Environment environment = applicationContext.getEnvironment();
+
+        String authenticatorBeanName = environment.getProperty(
                 dataStoreName + ".authenticator", DEFAULT_AUTHENTICATOR);
 
         authenticator = (RestAuthenticator) applicationContext.getBean(authenticatorBeanName);
         authenticator.setDataStoreName(dataStoreName);
 
-        String baseUrl = applicationContext.getEnvironment().getRequiredProperty(dataStoreName + ".baseUrl");
+        String baseUrl = environment.getRequiredProperty(dataStoreName + ".baseUrl");
 
-        restClient = RestClient.builder()
+        basePath = environment.getProperty(dataStoreName + ".basePath", "/rest");
+        entitiesPath = environment.getProperty(dataStoreName + ".entitiesPath", "/entities");
+        userInfoPath = environment.getProperty(dataStoreName + ".userInfoPath", "/userInfo");
+        permissionsPath = environment.getProperty(dataStoreName + ".permissionsPath", "/permissions");
+        capabilitiesPath = environment.getProperty(dataStoreName + ".capabilitiesPath", "/capabilities");
+
+        RestClient.Builder builder = applicationContext.getBean(RestClient.Builder.class);
+
+        restClient = builder
                 .baseUrl(baseUrl)
+                .messageConverters(converters ->
+                        converters.add(0, new StringHttpMessageConverter(StandardCharsets.UTF_8)))
                 .requestInterceptor(authenticator.getAuthenticationInterceptor())
                 .requestInterceptor(new LoggingClientHttpRequestInterceptor())
                 .build();
@@ -127,11 +148,11 @@ public class RestInvoker implements InitializingBean {
     }
 
     private URI createLoadUri(UriBuilder uriBuilder, LoadParams params) {
-        uriBuilder.path("/rest/entities/{entityName}/{id}");
-        if (params.fetchPlanName() != null) {
-            uriBuilder.queryParam("fetchPlan", params.fetchPlanName());
+        uriBuilder.path(basePath + entitiesPath + "/{entityName}/{id}");
+        if (params.fetchPlan() != null) {
+            uriBuilder.queryParam("fetchPlan", "{fetchPlan}");
         }
-        return uriBuilder.build(params.entityName(), params.id());
+        return uriBuilder.build(params.entityName(), params.id(), params.fetchPlan());
     }
 
     public String loadList(LoadListParams params) {
@@ -145,7 +166,7 @@ public class RestInvoker implements InitializingBean {
                         .body(String.class);
             } else {
                 resultJson = restClient.post()
-                        .uri("/rest/entities/{entityName}/search", params.entityName())
+                        .uri(basePath + entitiesPath + "/{entityName}/search", params.entityName())
                         .body(createSearchPostBody(params, false))
                         .retrieve()
                         .body(String.class);
@@ -170,8 +191,12 @@ public class RestInvoker implements InitializingBean {
                 rootNode.put("limit", params.limit());
             }
             rootNode.put("offset", params.offset());
-            if (params.fetchPlanName() != null) {
-                rootNode.put("fetchPlan", params.fetchPlanName());
+            if (params.fetchPlan() != null) {
+                if (isJsonObject(params.fetchPlan())) {
+                    rootNode.set("fetchPlan", objectMapper.readTree(params.fetchPlan()));
+                } else {
+                    rootNode.put("fetchPlan", params.fetchPlan());
+                }
             }
             if (returnCount) {
                 rootNode.put("returnCount", true);
@@ -184,7 +209,7 @@ public class RestInvoker implements InitializingBean {
     }
 
     private URI createLoadListUri(UriBuilder uriBuilder, LoadListParams params, boolean returnCount) {
-        uriBuilder.path("/rest/entities/{entityName}");
+        uriBuilder.path(basePath + entitiesPath + "/{entityName}");
         if (params.sort() != null) {
             uriBuilder.queryParam("sort", params.sort());
         }
@@ -192,13 +217,13 @@ public class RestInvoker implements InitializingBean {
             uriBuilder.queryParam("limit", params.limit());
         }
         uriBuilder.queryParam("offset", params.offset());
-        if (params.fetchPlanName() != null) {
-            uriBuilder.queryParam("fetchPlan", params.fetchPlanName());
+        if (params.fetchPlan() != null) {
+            uriBuilder.queryParam("fetchPlan", "{fetchPlan}");
         }
         if (returnCount) {
             uriBuilder.queryParam("returnCount", true);
         }
-        return uriBuilder.build(params.entityName());
+        return uriBuilder.build(params.entityName(), params.fetchPlan());
     }
 
     public long count(String entityName, @Nullable String filter) {
@@ -212,7 +237,7 @@ public class RestInvoker implements InitializingBean {
                         .toBodilessEntity();
             } else {
                 response = restClient.post()
-                        .uri("/rest/entities/{entityName}/search", entityName)
+                        .uri(basePath + entitiesPath + "/{entityName}/search", entityName)
                         .body(createSearchPostBody(new LoadListParams(entityName, filter), true))
                         .retrieve()
                         .toBodilessEntity();
@@ -227,7 +252,7 @@ public class RestInvoker implements InitializingBean {
     public String create(String entityName, String entityJson) {
         try {
             String resultJson = restClient.post()
-                    .uri("/rest/entities/{entityName}?responseFetchPlan=_base", entityName)
+                    .uri(basePath + entitiesPath + "/{entityName}?responseFetchPlan=_base", entityName)
                     .body(entityJson)
                     .retrieve()
                     .body(String.class);
@@ -241,7 +266,7 @@ public class RestInvoker implements InitializingBean {
     public String update(String entityName, String entityId, String entityJson) {
         try {
             String resultJson = restClient.put()
-                    .uri("/rest/entities/{entityName}/{id}?responseFetchPlan=_base", entityName, entityId)
+                    .uri(basePath + entitiesPath + "/{entityName}/{id}?responseFetchPlan=_base", entityName, entityId)
                     .body(entityJson)
                     .retrieve()
                     .body(String.class);
@@ -255,7 +280,7 @@ public class RestInvoker implements InitializingBean {
     public void delete(String entityName, String entityId) {
         try {
             restClient.delete()
-                    .uri("/rest/entities/{entityName}/{id}", entityName, entityId)
+                    .uri(basePath + entitiesPath + "/{entityName}/{id}", entityName, entityId)
                     .retrieve()
                     .toBodilessEntity();
         } catch (ResourceAccessException e) {
@@ -266,7 +291,7 @@ public class RestInvoker implements InitializingBean {
     public String userInfo() {
         try {
             String resultJson = restClient.get()
-                    .uri("/rest/userInfo")
+                    .uri(basePath + userInfoPath)
                     .retrieve()
                     .body(String.class);
 
@@ -279,7 +304,20 @@ public class RestInvoker implements InitializingBean {
     public String permissions() {
         try {
             String resultJson = restClient.get()
-                    .uri("/rest/permissions")
+                    .uri(basePath + permissionsPath)
+                    .retrieve()
+                    .body(String.class);
+
+            return resultJson;
+        } catch (ResourceAccessException e) {
+            throw new RestDataStoreAccessException(dataStoreName, e);
+        }
+    }
+
+    public String capabilities() {
+        try {
+            String resultJson = restClient.get()
+                    .uri(basePath + capabilitiesPath)
                     .retrieve()
                     .body(String.class);
 
@@ -291,6 +329,11 @@ public class RestInvoker implements InitializingBean {
 
     public RestAuthenticator getAuthenticator() {
         return authenticator;
+    }
+
+    private boolean isJsonObject(String s) {
+        String trimmed = s.trim();
+        return trimmed.startsWith("{") && trimmed.endsWith("}");
     }
 
     private static class LoggingClientHttpRequestInterceptor implements ClientHttpRequestInterceptor {

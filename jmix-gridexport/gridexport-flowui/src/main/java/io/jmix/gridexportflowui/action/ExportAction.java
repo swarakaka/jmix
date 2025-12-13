@@ -18,6 +18,7 @@ package io.jmix.gridexportflowui.action;
 
 import com.vaadin.flow.component.grid.Grid;
 import io.jmix.core.Messages;
+import io.jmix.core.MetadataTools;
 import io.jmix.core.common.util.Preconditions;
 import io.jmix.flowui.Dialogs;
 import io.jmix.flowui.action.ActionType;
@@ -25,7 +26,9 @@ import io.jmix.flowui.action.DialogAction;
 import io.jmix.flowui.action.SecuredBaseAction;
 import io.jmix.flowui.action.list.ListDataComponentAction;
 import io.jmix.flowui.component.ListDataComponent;
-import io.jmix.flowui.component.grid.DataGrid;
+import io.jmix.flowui.component.groupgrid.adapter.AbstractGroupDataGridAdapter;
+import io.jmix.flowui.component.groupgrid.GroupListDataComponent;
+import io.jmix.flowui.component.groupgrid.adapter.GroupDataGridAdapterFactory;
 import io.jmix.flowui.data.ContainerDataUnit;
 import io.jmix.flowui.download.Downloader;
 import io.jmix.flowui.kit.action.Action;
@@ -35,6 +38,8 @@ import io.jmix.gridexportflowui.GridExportProperties;
 import io.jmix.gridexportflowui.exporter.ColumnsToExport;
 import io.jmix.gridexportflowui.exporter.DataGridExporter;
 import io.jmix.gridexportflowui.exporter.ExportMode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -56,13 +61,17 @@ import java.util.function.Predicate;
 @ActionType(ExportAction.ID)
 public class ExportAction extends ListDataComponentAction<ExportAction, Object> implements ApplicationContextAware {
 
+    private static final Logger log = LoggerFactory.getLogger(ExportAction.class);
+
     public static final String ID = "grdexp_export";
 
     protected ApplicationContext applicationContext;
 
     protected Messages messages;
+    protected MetadataTools metadataTools;
     protected Downloader downloader;
     protected Dialogs dialogs;
+    protected GroupDataGridAdapterFactory groupDataGridFactory;
 
     protected DataGridExporter dataGridExporter;
     protected List<ExportMode> availableExportModes;
@@ -90,6 +99,11 @@ public class ExportAction extends ListDataComponentAction<ExportAction, Object> 
     }
 
     @Autowired
+    public void setMetadataTools(MetadataTools metadataTools) {
+        this.metadataTools = metadataTools;
+    }
+
+    @Autowired
     public void setDownloader(Downloader downloader) {
         this.downloader = downloader;
     }
@@ -97,6 +111,11 @@ public class ExportAction extends ListDataComponentAction<ExportAction, Object> 
     @Autowired
     public void setDialogs(Dialogs dialogs) {
         this.dialogs = dialogs;
+    }
+
+    @Autowired
+    public void setGroupDataGridAdapterFactory(GroupDataGridAdapterFactory groupDataGridFactory) {
+        this.groupDataGridFactory = groupDataGridFactory;
     }
 
     @Autowired
@@ -268,7 +287,7 @@ public class ExportAction extends ListDataComponentAction<ExportAction, Object> 
         for (ExportMode exportMode : availableExportModes) {
             switch (exportMode) {
                 case ALL_ROWS -> {
-                    if (isDataLoaderExist(target)) {
+                    if (isExportAllAvailable(target)) {
                         actions.add(createExportAllAction(primaryFilterPredicate));
                     }
                 }
@@ -288,7 +307,8 @@ public class ExportAction extends ListDataComponentAction<ExportAction, Object> 
                 .withHeader(getMessage("exportConfirmationDialog.header"))
                 .withText(getMessage("exportConfirmationDialog.message"))
                 .withActions(actions.toArray(new Action[0]))
-                .withWidth("32em")
+                .withMinWidth("32em")
+                .withMaxWidth("50em")
                 .open();
     }
 
@@ -303,8 +323,18 @@ public class ExportAction extends ListDataComponentAction<ExportAction, Object> 
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     protected void doExport(ExportMode exportMode, Predicate<Grid.Column<Object>> primaryFilterPredicate) {
-        if (getTarget() instanceof Grid) {
-            dataGridExporter.exportDataGrid(downloader, (DataGrid) getTarget(), exportMode, primaryFilterPredicate);
+        if (getTarget() instanceof GroupListDataComponent groupGrid) {
+            AbstractGroupDataGridAdapter<?> adapter = groupDataGridFactory.getAdapter(groupGrid);
+            if (adapter != null) {
+                dataGridExporter.exportDataGrid(downloader, (Grid) adapter, exportMode, primaryFilterPredicate);
+                return;
+            }
+
+            log.warn("Cannot export {}. There were no adapters created", GroupListDataComponent.class.getSimpleName());
+        }
+
+        if (getTarget() instanceof Grid grid) {
+            dataGridExporter.exportDataGrid(downloader, grid, exportMode, primaryFilterPredicate);
         } else {
             throw new UnsupportedOperationException("Unsupported component for export");
         }
@@ -332,8 +362,9 @@ public class ExportAction extends ListDataComponentAction<ExportAction, Object> 
                 .withHandler(event -> doExport(ExportMode.CURRENT_PAGE, primaryFilterPredicate));
     }
 
-    protected boolean isDataLoaderExist(ListDataComponent<?> target) {
+    protected boolean isExportAllAvailable(ListDataComponent<?> target) {
         return target.getItems() instanceof ContainerDataUnit<?> containerItems
+                && metadataTools.getPrimaryKeyProperty(containerItems.getEntityMetaClass()) != null
                 && containerItems.getContainer() instanceof HasLoader containerWithLoader
                 && containerWithLoader.getLoader() != null;
     }

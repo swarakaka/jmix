@@ -38,7 +38,6 @@ import java.util.stream.Collectors;
 /**
  * Utility bean that facilitates url modifications and generations.
  */
-@org.springframework.stereotype.Component("flowui_RouteSupport")
 public class RouteSupport {
 
     private static final Logger log = LoggerFactory.getLogger(RouteSupport.class);
@@ -143,8 +142,7 @@ public class RouteSupport {
                     updater.apply(resolveQueryParameters(url), name, values);
             Location newLocation = new Location(locationString, resultQueryParameters);
 
-            log.debug("Replace URL state with new location: {}", newLocation.getPathWithQueryParameters());
-            page.getHistory().replaceState(null, newLocation, false);
+            replaceStateInternal(ui, newLocation);
         });
     }
 
@@ -162,8 +160,7 @@ public class RouteSupport {
             String locationString = resolveLocationString(url);
             Location newLocation = new Location(locationString, queryParameters);
 
-            log.debug("Replace URL state with new location: {}", newLocation.getPathWithQueryParameters());
-            page.getHistory().replaceState(null, newLocation, false);
+            replaceStateInternal(ui, newLocation);
         });
     }
 
@@ -328,9 +325,39 @@ public class RouteSupport {
             QueryParameters queryParameters = resolveQueryParameters(url);
             Location newLocation = new Location(locationString, queryParameters);
 
-            log.debug("Replace URL state with new location: {}", newLocation.getPathWithQueryParameters());
-            page.getHistory().replaceState(null, newLocation, false);
+            replaceStateInternal(ui, newLocation);
         });
+    }
+
+    /**
+     * Invokes {@code history.replaceState} in the browser with the given location.
+     *
+     * @param ui       UI instance for which to set location
+     * @param location the new location to set in the browser
+     */
+    public void setLocation(UI ui, Location location) {
+        setLocation(ui, location, false);
+    }
+
+    /**
+     * Invokes {@code history.replaceState} in the browser with the given location.
+     *
+     * @param ui       UI instance for which to set location
+     * @param location the new location to set in the browser
+     * @param callback {@code true} if the change should make
+     *                 a return call to the server
+     */
+    public void setLocation(UI ui, Location location, boolean callback) {
+        replaceStateInternal(ui, location, callback);
+    }
+
+    protected void replaceStateInternal(UI ui, Location location) {
+        replaceStateInternal(ui, location, false);
+    }
+
+    protected void replaceStateInternal(UI ui, Location location, boolean callback) {
+        log.debug("Replace URL state with new location: {}", location.getPathWithQueryParameters());
+        ui.getPage().getHistory().replaceState(null, location, callback);
     }
 
     protected List<String> convertValues(List<Object> values) {

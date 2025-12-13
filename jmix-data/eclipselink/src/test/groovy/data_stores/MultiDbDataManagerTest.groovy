@@ -7,7 +7,9 @@ package data_stores
 
 import io.jmix.core.*
 import io.jmix.core.impl.DataStoreFactory
+import io.jmix.core.impl.NoopDataStore
 import io.jmix.data.StoreAwareLocator
+import org.spockframework.spring.SpringBean
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.dao.DataAccessException
 import org.springframework.jdbc.core.JdbcTemplate
@@ -238,6 +240,70 @@ class MultiDbDataManagerTest extends DataSpec {
 
         then: "cross-datastore nested entities merge cascaded"
         results.get(reloadedHolder).getMainReport().getDb1Order().getCustomer().name == "next"
+
+        // the following condition fails, see https://github.com/jmix-framework/jmix/issues/4027
+//        when:
+//        def report1 = dataManager.load(MainReport)
+//                .id(report.id)
+//                .fetchPlan {
+//                    it.addAll('db1OrderId', 'db1Order')
+//                }
+//                .one()
+//
+//        then:
+//        report1.db1OrderId == order.id
+//        report1.db1Order == order
     }
 
+    void testCrossDatastoreReferenceIsNotCleared() {
+        Db1Order order = metadata.create(Db1Order)
+        order.setOrderDate(new Date())
+        dataManager.save(order)
+
+        MainReport report = metadata.create(MainReport)
+        report.setDb1Order(order)
+        report.setName("test")
+        report = dataManager.save(report)
+
+        when: "loading entity without reference and then saving changes"
+        def report1 = dataManager.load(MainReport)
+                .id(report.id)
+                .fetchPlan(FetchPlan.BASE)
+                .one()
+
+        report1.setName('changed')
+        dataManager.save(report1)
+
+        then: "the reference is not cleared"
+        def report2 = dataManager.load(MainReport)
+                .id(report.id)
+                .fetchPlan({ builder -> builder.addFetchPlan(FetchPlan.BASE).add('db1Order') })
+                .one()
+
+        report2.db1Order != null
+    }
+
+    @SpringBean
+    NoopDataStore noopDataStore = Stub() {
+        save(_) >> { throw new RuntimeException("Invoked NoopDataStore save()") }
+        load(_) >> { throw new RuntimeException("Invoked NoopDataStore load()") }
+        loadList(_) >> { throw new RuntimeException("Invoked NoopDataStore loadList()") }
+        getCount(_) >> { throw new RuntimeException("Invoked NoopDataStore getCount()") }
+    }
+
+    def testMethodBasedDtoWithDependsOn() {
+        MainReport report = metadata.create(MainReport)
+        report.setName("test")
+        report = dataManager.save(report)
+
+        when:
+        def report1 = dataManager.load(MainReport)
+                .id(report.id)
+                .fetchPlan({ builder -> builder.addFetchPlan(FetchPlan.BASE).add('methodBasedTestUuidDtoWithDependsOn') })
+                .one()
+
+        then:
+        noExceptionThrown()
+        report1.methodBasedTestUuidDtoWithDependsOn != null
+    }
 }

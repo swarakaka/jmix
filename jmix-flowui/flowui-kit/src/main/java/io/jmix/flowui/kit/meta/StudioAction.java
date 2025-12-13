@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Haulmont.
+ * Copyright 2025 Haulmont.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ public @interface StudioAction {
     /**
      * @see StudioComponent#classFqn
      */
-    String icon() default "";
+    String icon() default "io/jmix/flowui/kit/meta/icon/action/action.svg";
 
     /**
      * Action description.
@@ -56,7 +56,10 @@ public @interface StudioAction {
     /**
      * @see StudioActionsGroup#unsupportedTarget
      */
-    String[] unsupportedTarget() default {};
+    String[] unsupportedTarget() default {
+            "io.jmix.flowui.app.main.StandardMainView",
+            "io.jmix.tabbedmode.app.main.StandardTabbedModeMainView"
+    };
 
     /**
      * Specifies whether the action should be displayed in the view creation wizard.

@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.router.QueryParameters;
+import io.jmix.flowui.component.grid.DataGrid;
 import io.jmix.flowui.component.grid.DataGridColumn;
 import io.jmix.flowui.component.grid.headerfilter.DataGridHeaderFilter;
 import io.jmix.flowui.component.propertyfilter.PropertyFilter;
@@ -34,13 +35,18 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static io.jmix.flowui.facet.urlqueryparameters.FilterUrlQueryParametersSupport.SEPARATOR;
 
-public class DataGridFilterUrlQueryParametersBinder extends AbstractUrlQueryParametersBinder {
+/**
+ * This class provides functionality to bind filters in {@link DataGrid} to URL query parameters.
+ */
+public class DataGridFilterUrlQueryParametersBinder extends AbstractUrlQueryParametersBinder
+        implements HasInitialState {
 
     private static final Logger log = LoggerFactory.getLogger(DataGridFilterUrlQueryParametersBinder.class);
 
@@ -54,6 +60,8 @@ public class DataGridFilterUrlQueryParametersBinder extends AbstractUrlQueryPara
     protected UrlParamSerializer urlParamSerializer;
     protected FilterUrlQueryParametersSupport filterUrlQueryParametersSupport;
     protected RouteSupport routeSupport;
+
+    protected List<InitialState> initialStates = new ArrayList<>();
 
     public DataGridFilterUrlQueryParametersBinder(Grid<?> grid,
                                                   UrlParamSerializer urlParamSerializer,
@@ -76,6 +84,26 @@ public class DataGridFilterUrlQueryParametersBinder extends AbstractUrlQueryPara
             if (column instanceof DataGridColumn<?> dataGridColumn
                     && dataGridColumn.isFilterable()) {
                 setupColumn(dataGridColumn);
+            }
+        }
+    }
+
+    @Override
+    public void saveInitialState() {
+        for (Grid.Column<?> column : grid.getColumns()) {
+            if (column instanceof DataGridColumn<?> dataGridColumn
+                    && dataGridColumn.isFilterable()
+                    && dataGridColumn.getHeaderComponent() instanceof DataGridHeaderFilter headerFilter) {
+                PropertyFilter<?> propertyFilter = headerFilter.getPropertyFilter();
+
+                initialStates.add(
+                        new InitialState(
+                                dataGridColumn.getKey(),
+                                Objects.requireNonNull(propertyFilter.getProperty()),
+                                propertyFilter.getOperation(),
+                                propertyFilter.getValue()
+                        )
+                );
             }
         }
     }
@@ -121,6 +149,25 @@ public class DataGridFilterUrlQueryParametersBinder extends AbstractUrlQueryPara
                 parameterValue;
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    @Override
+    public void applyInitialState() {
+        for (InitialState initialState : initialStates) {
+            Grid.Column<?> column = grid.getColumnByKey(initialState.key);
+
+            if (column instanceof DataGridColumn<?> dataGridColumn
+                    && dataGridColumn.isFilterable()
+                    && dataGridColumn.getHeaderComponent() instanceof DataGridHeaderFilter headerFilter
+                    && initialState.property.equals(headerFilter.getPropertyFilter().getProperty())) {
+                PropertyFilter propertyFilter = headerFilter.getPropertyFilter();
+
+                propertyFilter.setOperation(initialState.operation);
+                propertyFilter.setValue(initialState.value);
+                headerFilter.apply();
+            }
+        }
+    }
+
     @Override
     public void updateState(QueryParameters queryParameters) {
         Map<String, List<String>> parameters = queryParameters.getParameters();
@@ -133,9 +180,6 @@ public class DataGridFilterUrlQueryParametersBinder extends AbstractUrlQueryPara
         for (String parameterString : params) {
             if (StringUtils.countOccurrencesOf(parameterString, SEPARATOR) == 3) {
                 applyPropertyFilterParameter(parameterString);
-            } else {
-                // use legacy api
-                _applyPropertyFilterParameter(parameterString);
             }
         }
     }
@@ -200,60 +244,12 @@ public class DataGridFilterUrlQueryParametersBinder extends AbstractUrlQueryPara
     }
 
     /**
-     * @deprecated use {@link #applyPropertyFilterParameter(String)} instead
+     * Returns the parameter name for the associated {@link DataGrid} component.
+     * If the parameter is not explicitly set, constructs a default value based on the grid's ID
+     * with "Filter" appended to it.
+     *
+     * @return the value of the parameter if set, or a generated default value based on the grid's ID
      */
-    @Deprecated(since = "2.3", forRemoval = true)
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    protected void _applyPropertyFilterParameter(String parameterString) {
-        int separatorIndex = parameterString.indexOf(SEPARATOR);
-
-        if (separatorIndex == -1) {
-            throw new IllegalStateException("Can't parse property condition: " + parameterString);
-        }
-
-        String propertyString = parameterString.substring(0, separatorIndex);
-        String property = urlParamSerializer.deserialize(String.class,
-                filterUrlQueryParametersSupport.restoreSeparatorValue(propertyString));
-
-        DataGridColumn<?> column = (DataGridColumn<?>) grid.getColumnByKey(property);
-        if (column == null) {
-            throw new IllegalStateException("Can't find column with property: " + property);
-        }
-        if (!column.isFilterable()) {
-            throw new IllegalStateException("Column must be filterable");
-        }
-
-        parameterString = parameterString.substring(separatorIndex + 1);
-        separatorIndex = parameterString.indexOf(SEPARATOR);
-        if (separatorIndex == -1) {
-            throw new IllegalStateException("Can't parse property condition: " + parameterString);
-        }
-
-        String operationString = parameterString.substring(0, separatorIndex);
-        PropertyFilter.Operation operation = urlParamSerializer
-                .deserialize(PropertyFilter.Operation.class,
-                        filterUrlQueryParametersSupport.restoreSeparatorValue(operationString));
-
-        DataGridHeaderFilter headerFilter = (DataGridHeaderFilter) column.getHeaderComponent();
-        PropertyFilter propertyFilter = headerFilter.getPropertyFilter();
-        propertyFilter.setOperation(operation);
-
-        String valueString = parameterString.substring(separatorIndex + 1);
-        if (!Strings.isNullOrEmpty(valueString)) {
-            try {
-                Object parsedValue = filterUrlQueryParametersSupport
-                        .parseValue(((ContainerDataGridItems<?>) grid.getDataProvider()).getEntityMetaClass(),
-                                property, operation.getType(), valueString);
-                propertyFilter.setValue(parsedValue);
-            } catch (Exception e) {
-                log.info("Cannot parse URL parameter. {}", e.toString());
-                propertyFilter.setValue(null);
-            }
-        }
-
-        headerFilter.apply();
-    }
-
     public String getParameter() {
         return Strings.isNullOrEmpty(parameter)
                 ? grid.getId().orElseThrow(() ->
@@ -262,6 +258,11 @@ public class DataGridFilterUrlQueryParametersBinder extends AbstractUrlQueryPara
                 : parameter;
     }
 
+    /**
+     * Sets the parameter name for the associated {@link DataGrid} component.
+     *
+     * @param parameter the parameter value to set; may be {@code null} if no specific value is provided
+     */
     public void setParameter(@Nullable String parameter) {
         this.parameter = parameter;
     }
@@ -270,5 +271,16 @@ public class DataGridFilterUrlQueryParametersBinder extends AbstractUrlQueryPara
     @Override
     public Component getComponent() {
         return grid;
+    }
+
+    /**
+     * A POJO class for storing properties of the {@link DataGridHeaderFilter}'s initial state.
+     *
+     * @param key       the value of {@code key} of the filter
+     * @param property  the value of {@code property} of the filter
+     * @param operation the value of {@code operation} at initialization
+     * @param value     the value of {@code value} at initialization
+     */
+    protected record InitialState(String key, String property, PropertyFilter.Operation operation, Object value) {
     }
 }

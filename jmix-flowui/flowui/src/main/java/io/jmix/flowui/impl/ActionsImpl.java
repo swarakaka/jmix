@@ -16,7 +16,9 @@
 
 package io.jmix.flowui.impl;
 
+import com.google.common.base.Strings;
 import io.jmix.core.ClassManager;
+import io.jmix.core.impl.scanning.AnnotationScanMetadataReaderFactory;
 import io.jmix.flowui.Actions;
 import io.jmix.flowui.action.ActionType;
 import io.jmix.flowui.kit.action.Action;
@@ -32,8 +34,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
@@ -41,6 +45,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Implementation of the {@link Actions} interface that manages the creation and registration
+ * of action types annotated with {@link ActionType}. It initializes and resolves action classes,
+ * making them available for use within the application context.
+ */
 @Component("flowui_Actions")
 public class ActionsImpl implements Actions, ApplicationListener<ContextRefreshedEvent> {
 
@@ -50,6 +59,7 @@ public class ActionsImpl implements Actions, ApplicationListener<ContextRefreshe
     protected ClassManager classManager;
     protected ApplicationContext applicationContext;
     protected ActionsConfigurationSorter actionsConfigurationSorter;
+    protected AnnotationScanMetadataReaderFactory metadataReaderFactory;
 
     protected Map<String, Class<? extends Action>> classes = new HashMap<>();
 
@@ -71,6 +81,11 @@ public class ActionsImpl implements Actions, ApplicationListener<ContextRefreshe
     @Autowired
     public void setActionsConfigurationSorter(ActionsConfigurationSorter actionsConfigurationSorter) {
         this.actionsConfigurationSorter = actionsConfigurationSorter;
+    }
+
+    @Autowired
+    public void setMetadataReaderFactory(AnnotationScanMetadataReaderFactory metadataReaderFactory) {
+        this.metadataReaderFactory = metadataReaderFactory;
     }
 
     @PostConstruct
@@ -181,5 +196,52 @@ public class ActionsImpl implements Actions, ApplicationListener<ContextRefreshe
 
             log.debug("Actions initialized in {} ms", System.currentTimeMillis() - startTime);
         }
+    }
+
+    /**
+     * Reloads an action class for hot-deploy.
+     *
+     * @param className action class name
+     */
+    public void loadActionClass(String className) {
+        MetadataReader metadataReader = null;
+        try {
+            metadataReader = metadataReaderFactory.getMetadataReader(className);
+        } catch (IOException e) {
+            log.debug("Unable to get MetadataReader for action class: {}", className);
+        }
+
+        if (metadataReader == null || !isCandidateAction(metadataReader)) {
+            return;
+        }
+
+        Map<String, Object> actionTypeAnnotation =
+                metadataReader.getAnnotationMetadata().getAnnotationAttributes(ActionType.class.getName());
+
+        String actionTypeId = null;
+        if (actionTypeAnnotation != null) {
+            actionTypeId = (String) actionTypeAnnotation.get(ActionType.VALUE_ATTRIBUTE);
+        }
+
+        if (Strings.isNullOrEmpty(actionTypeId)) {
+            actionTypeId = metadataReader.getClassMetadata().getClassName();
+        }
+
+        ActionDefinition actionDefinition = new ActionDefinition(actionTypeId, className);
+        ActionsConfiguration actionsConfiguration = new ActionsConfiguration(applicationContext, metadataReaderFactory);
+
+        actionsConfiguration.setExplicitDefinitions(Collections.singletonList(actionDefinition));
+        configurations.add(actionsConfiguration);
+
+        //noinspection unchecked
+        Class<? extends Action> actionClass = ((Class<? extends Action>) classManager.loadClass(className));
+        classes.put(actionTypeId, actionClass);
+
+        log.debug("Reloaded action class: {}", actionClass.getName());
+    }
+
+    protected boolean isCandidateAction(MetadataReader metadataReader) {
+        return metadataReader.getClassMetadata().isConcrete()
+                && metadataReader.getAnnotationMetadata().hasAnnotation(ActionType.class.getName());
     }
 }

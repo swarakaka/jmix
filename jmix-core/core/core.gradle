@@ -22,6 +22,7 @@ archivesBaseName = 'jmix-core'
 
 dependencies {
     api 'org.springframework.boot:spring-boot'
+    api 'org.springframework.boot:spring-boot-starter-validation'
     api 'org.springframework:spring-context'
     api 'org.springframework:spring-context-support'
     api 'org.springframework:spring-webmvc'
@@ -58,12 +59,14 @@ dependencies {
     api 'javax.cache:cache-api'
 
     implementation'com.google.code.gson:gson'
+    implementation 'com.github.f4b6a3:uuid-creator'
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation 'org.springframework:spring-test'
     testImplementation "org.spockframework:spock-core"
     testImplementation "org.spockframework:spock-spring"
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
     testRuntimeOnly 'org.slf4j:slf4j-simple'
 }

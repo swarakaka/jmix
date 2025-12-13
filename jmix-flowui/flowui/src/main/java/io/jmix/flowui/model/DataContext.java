@@ -24,9 +24,7 @@ import io.jmix.flowui.view.Subscribe;
 import org.springframework.lang.Nullable;
 
 import javax.annotation.CheckReturnValue;
-import java.util.Collection;
-import java.util.EventObject;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -36,7 +34,6 @@ import java.util.function.Function;
  * Within {@code DataContext}, an entity with the given identifier is represented by a single object instance, no matter
  * where and how many times it is used in object graphs.
  */
-@SuppressWarnings("rawtypes")
 @InstallSubject("saveDelegate")
 public interface DataContext {
 
@@ -99,7 +96,7 @@ public interface DataContext {
      * @return set of instances tracked by the context
      */
     @CheckReturnValue
-    EntitySet merge(Collection entities, MergeOptions options);
+    EntitySet merge(Collection<?> entities, MergeOptions options);
 
     /**
      * Merge the given entities into the context. The whole object graph for each element of the collection with all
@@ -110,7 +107,7 @@ public interface DataContext {
      * @return set of instances tracked by the context
      */
     @CheckReturnValue
-    EntitySet merge(Collection entities);
+    EntitySet merge(Collection<?> entities);
 
     /**
      * Removes the entity from the context and registers it as deleted. The entity will be removed from the data store
@@ -156,6 +153,14 @@ public interface DataContext {
      * Returns true if the context has detected changes in the tracked entities.
      */
     boolean hasChanges();
+
+    /**
+     * Clears the lists of modified and removed entities. After calling this method, {@link #hasChanges()} returns false,
+     * {@link #getModified()} and {@link #getRemoved()} return empty sets.
+     */
+    default void clearChanges() {
+        throw new UnsupportedOperationException("Not implemented");
+    }
 
     /**
      * Returns true if the context has detected changes in the given entity.
@@ -292,11 +297,11 @@ public interface DataContext {
      */
     class PreSaveEvent extends EventObject {
 
-        private final Collection modifiedInstances;
-        private final Collection removedInstances;
+        private final Collection<Object> modifiedInstances;
+        private final Collection<Object> removedInstances;
         private boolean savePrevented;
 
-        public PreSaveEvent(DataContext dataContext, Collection modified, Collection removed) {
+        public PreSaveEvent(DataContext dataContext, Collection<Object> modified, Collection<Object> removed) {
             super(dataContext);
             this.modifiedInstances = modified;
             this.removedInstances = removed;
@@ -313,14 +318,14 @@ public interface DataContext {
         /**
          * Returns the collection of modified instances.
          */
-        public Collection getModifiedInstances() {
+        public Collection<Object> getModifiedInstances() {
             return modifiedInstances;
         }
 
         /**
          * Returns the collection of removed instances.
          */
-        public Collection getRemovedInstances() {
+        public Collection<Object> getRemovedInstances() {
             return removedInstances;
         }
 
@@ -372,10 +377,10 @@ public interface DataContext {
      */
     class PostSaveEvent extends EventObject {
 
-        private final Collection savedInstances;
+        private final Collection<?> savedInstances;
         private final boolean entitiesReloaded;
 
-        public PostSaveEvent(DataContext dataContext, Collection savedInstances, boolean entitiesReloaded) {
+        public PostSaveEvent(DataContext dataContext, Collection<?> savedInstances, boolean entitiesReloaded) {
             super(dataContext);
             this.savedInstances = savedInstances;
             this.entitiesReloaded = entitiesReloaded;

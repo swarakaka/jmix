@@ -26,12 +26,11 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
-import com.vaadin.flow.router.BeforeEnterEvent;
-import com.vaadin.flow.router.BeforeLeaveEvent;
-import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.*;
 import io.jmix.appsettings.AppSettings;
 import io.jmix.appsettings.AppSettingsTools;
 import io.jmix.appsettings.entity.AppSettingsEntity;
+import io.jmix.appsettingsflowui.AppSettingsUiProperties;
 import io.jmix.core.*;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.metamodel.model.MetaProperty;
@@ -59,10 +58,12 @@ import io.jmix.flowui.view.navigation.RouteSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import jakarta.persistence.Convert;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Route(value = "app-settings", layout = DefaultMainViewParent.class)
+@RouteAlias(value = "app-settings", layout = DefaultMainViewParent.class)
+@Route(value = "appset/app-settings", layout = DefaultMainViewParent.class)
 @ViewController("appSettings.view")
 @ViewDescriptor("app-settings-entity-view.xml")
 @DialogMode(width = "50em", height = "37.5em")
@@ -80,8 +81,12 @@ public class AppSettingsEntityView extends StandardView {
     @ViewComponent
     protected HorizontalLayout buttonsPanel;
 
+    @ViewComponent
+    protected MessageBundle messageBundle;
     @Autowired
     protected AppSettings appSettings;
+    @Autowired
+    protected AppSettingsUiProperties appSettingsUiProperties;
     @Autowired
     protected EntityStates entityStates;
     @Autowired
@@ -94,12 +99,6 @@ public class AppSettingsEntityView extends StandardView {
     protected DataComponents dataComponents;
     @Autowired
     protected ViewValidation viewValidation;
-    // Keep for compatibility, to prevent possible compilation errors,
-    // if someone has extended this view and is using Messages.
-    @Autowired
-    protected Messages messages;
-    @Autowired
-    protected MessageBundle messageBundle;
     @Autowired
     protected AppSettingsTools appSettingsTools;
     @Autowired
@@ -140,11 +139,14 @@ public class AppSettingsEntityView extends StandardView {
 
         prevMetaClass = e.getOldValue();
         currentMetaClass = e.getValue();
-        getUI().ifPresent(ui -> routeSupport.setQueryParameter(
-                ui,
-                QUERY_PARAM_SETTINGS_CLASS,
-                currentMetaClass.getName()
-        ));
+
+        getUI().ifPresent(ui -> {
+            if (currentMetaClass == null) {
+                routeSupport.setQueryParameters(ui, QueryParameters.empty());
+            } else {
+                routeSupport.setQueryParameter(ui, QUERY_PARAM_SETTINGS_CLASS, currentMetaClass.getName());
+            }
+        });
 
         if (dataContext != null && hasUnsavedChanges()) {
             handleEntitySelectorValueChangeWithUnsavedChanges();
@@ -163,6 +165,19 @@ public class AppSettingsEntityView extends StandardView {
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
+        findSettingsClass(event);
+
+        super.beforeEnter(event);
+    }
+
+    @Override
+    protected void processBeforeEnterInternal(BeforeEnterEvent event) {
+        findSettingsClass(event);
+
+        super.processBeforeEnterInternal(event);
+    }
+
+    protected void findSettingsClass(BeforeEnterEvent event) {
         Map<String, List<String>> parameters = event.getLocation().getQueryParameters().getParameters();
 
         if (parameters.containsKey(QUERY_PARAM_SETTINGS_CLASS)) {
@@ -170,7 +185,6 @@ public class AppSettingsEntityView extends StandardView {
                     .findAny()
                     .ifPresent(this::setSettingsClass);
         }
-        super.beforeEnter(event);
     }
 
     @Subscribe
@@ -191,7 +205,10 @@ public class AppSettingsEntityView extends StandardView {
                 viewValidation.showSaveConfirmationDialog(this)
                         .onSave(() -> result.resume(navigateWithSave(navigationAction)))
                         .onDiscard(() -> result.resume(navigateWithDiscard(navigationAction)))
-                        .onCancel(result::fail);
+                        .onCancel(() -> {
+                            navigationAction.cancel();
+                            result.fail();
+                        });
             }
 
             event.preventClose(result);
@@ -208,7 +225,7 @@ public class AppSettingsEntityView extends StandardView {
     }
 
     protected OperationResult navigate(BeforeLeaveEvent.ContinueNavigationAction navigationAction,
-                                     CloseAction closeAction) {
+                                       CloseAction closeAction) {
         navigationAction.proceed();
 
         AfterCloseEvent afterCloseEvent = new AfterCloseEvent(this, closeAction);
@@ -293,7 +310,8 @@ public class AppSettingsEntityView extends StandardView {
                     }
                     if (metaProperty.getType() != MetaProperty.Type.ENUM
                             && (metaProperty.getRange().asDatatype().getJavaClass().equals(byte[].class) ||
-                            metaProperty.getRange().asDatatype().getJavaClass().equals(UUID.class))) {
+                            metaProperty.getRange().asDatatype().getJavaClass().equals(UUID.class) &&
+                            !appSettingsUiProperties.isShowUuidFields())) {
                         continue;
                     }
                     if (metadataTools.isAnnotationPresent(item, metaProperty.getName(), Convert.class)) {

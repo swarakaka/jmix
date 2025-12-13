@@ -5,6 +5,7 @@ import com.vaadin.flow.component.AbstractField.ComponentValueChangeEvent;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
+import com.vaadin.flow.data.renderer.Renderer;
 import com.vaadin.flow.function.SerializableFunction;
 import io.jmix.core.MessageTools;
 import io.jmix.core.Metadata;
@@ -20,10 +21,10 @@ import io.jmix.security.model.EntityAttributePolicyAction;
 import io.jmix.security.model.ResourcePolicyEffect;
 import io.jmix.security.model.ResourcePolicyType;
 import io.jmix.securityflowui.model.DefaultResourcePolicyGroupResolver;
-import io.jmix.securityflowui.model.ResourcePolicyModel;
+import io.jmix.security.model.ResourcePolicyModel;
 import org.springframework.beans.factory.annotation.Autowired;
-
 import org.springframework.lang.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -51,9 +52,7 @@ public class EntityAttributeResourcePolicyModelCreateView extends MultipleResour
 
     @Autowired
     private Metadata metadata;
-    @Autowired
-    private MessageTools messageTools;
-    @Autowired
+    @ViewComponent
     private MessageBundle messageBundle;
 
     private boolean hasChanges = false;
@@ -62,8 +61,6 @@ public class EntityAttributeResourcePolicyModelCreateView extends MultipleResour
     public void onInit(InitEvent event) {
         ComponentUtils.setItemsMap(entityField, resourcePolicyEditorUtils.getEntityOptionsMap());
         entityField.addValueChangeListener(this::onEntityFieldValueChange);
-
-        initTable();
     }
 
     private void onEntityFieldValueChange(ComponentValueChangeEvent<ComboBox<String>, String> event) {
@@ -84,14 +81,6 @@ public class EntityAttributeResourcePolicyModelCreateView extends MultipleResour
     @Subscribe("policyGroupField")
     public void onPolicyGroupFieldValueChange(ComponentValueChangeEvent<TypedTextField<String>, String> event) {
         this.hasChanges = true;
-    }
-
-    private void initTable() {
-        attributesTable.addColumn(createViewPermissionChangeRenderer())
-                .setHeader(getColumnHeader("view"));
-
-        attributesTable.addColumn(createModifyPermissionChangeRenderer())
-                .setHeader(getColumnHeader("modify"));
     }
 
     private void fillAttributesTable(@Nullable String entityName) {
@@ -169,14 +158,14 @@ public class EntityAttributeResourcePolicyModelCreateView extends MultipleResour
         return entityName + "." + attributeName;
     }
 
-    private ComponentRenderer<Checkbox, AttributeResourceModel> createViewPermissionChangeRenderer() {
-        return new ComponentRenderer<>(
-                (SerializableFunction<AttributeResourceModel, Checkbox>) this::viewPermissionChangeUpdater);
+    @Supply(to = "attributesTable.view", subject = "renderer")
+    private Renderer<AttributeResourceModel> attributesTableViewRenderer() {
+        return new ComponentRenderer<>(this::viewPermissionChangeUpdater);
     }
 
-    private ComponentRenderer<Checkbox, AttributeResourceModel> createModifyPermissionChangeRenderer() {
-        return new ComponentRenderer<>(
-                (SerializableFunction<AttributeResourceModel, Checkbox>) this::modifyPermissionChangeUpdater);
+    @Supply(to = "attributesTable.modify", subject = "renderer")
+    private Renderer<AttributeResourceModel> attributesTableModifyRenderer() {
+        return new ComponentRenderer<>(this::modifyPermissionChangeUpdater);
     }
 
     private Checkbox viewPermissionChangeUpdater(AttributeResourceModel item) {
@@ -201,9 +190,5 @@ public class EntityAttributeResourcePolicyModelCreateView extends MultipleResour
         });
 
         return checkbox;
-    }
-
-    private String getColumnHeader(String property) {
-        return messageTools.getPropertyCaption(attributesDc.getEntityMetaClass(), property);
     }
 }

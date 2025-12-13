@@ -16,7 +16,9 @@
 
 package io.jmix.flowui.kit.component.dropdownbutton;
 
-public enum DropdownButtonVariant {
+import com.vaadin.flow.component.shared.ThemeVariant;
+
+public enum DropdownButtonVariant implements ThemeVariant {
 
     LUMO_SMALL("small"),
     LUMO_LARGE("large"),
@@ -25,6 +27,7 @@ public enum DropdownButtonVariant {
     LUMO_PRIMARY("primary"),
     LUMO_ERROR("error"),
     LUMO_SUCCESS("success"),
+    LUMO_WARNING("warning"),
     LUMO_CONTRAST("contrast"),
     LUMO_ICON("icon"),
     MATERIAL_CONTAINED("contained"),
@@ -41,6 +44,7 @@ public enum DropdownButtonVariant {
      *
      * @return variant name
      */
+    @Override
     public String getVariantName() {
         return variant;
     }

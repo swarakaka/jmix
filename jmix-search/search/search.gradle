@@ -22,9 +22,11 @@ archivesBaseName = 'jmix-search'
 
 dependencies {
     api project(':data')
+    api project(':eclipselink')
     api project(':security')
+    compileOnly project(':dynattr')
 
-    api 'org.apache.lucene:lucene-queryparser:9.11.1'
+    api 'org.apache.lucene:lucene-queryparser'
 
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.core:jackson-annotations'
@@ -64,6 +66,7 @@ dependencies {
     testImplementation 'org.springframework:spring-test'
     testImplementation 'org.apache.commons:commons-dbcp2'
     testImplementation project(':eclipselink')
+    testImplementation project(':dynattr')
     testImplementation 'org.liquibase:liquibase-core'
     testImplementation 'org.junit.jupiter:junit-jupiter-engine'
     testImplementation 'org.junit.jupiter:junit-jupiter-params'
@@ -72,4 +75,5 @@ dependencies {
     testImplementation "org.spockframework:spock-core"
     testRuntimeOnly 'org.slf4j:slf4j-simple'
     testRuntimeOnly 'org.hsqldb:hsqldb'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

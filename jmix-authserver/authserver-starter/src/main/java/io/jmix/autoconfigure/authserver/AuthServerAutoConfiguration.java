@@ -16,9 +16,11 @@
 
 package io.jmix.autoconfigure.authserver;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jmix.authserver.AuthServerConfiguration;
 import io.jmix.authserver.AuthServerProperties;
 import io.jmix.authserver.authentication.OAuth2ResourceOwnerPasswordTokenEndpointConfigurer;
+import io.jmix.authserver.authentication.TokenRevocationLogoutHandler;
 import io.jmix.authserver.filter.AsResourceServerEventSecurityFilter;
 import io.jmix.authserver.introspection.AuthorizationServiceOpaqueTokenIntrospector;
 import io.jmix.authserver.introspection.TokenIntrospectorRolesHelper;
@@ -27,31 +29,52 @@ import io.jmix.authserver.roleassignment.InMemoryRegisteredClientRoleAssignmentR
 import io.jmix.authserver.roleassignment.RegisteredClientRoleAssignment;
 import io.jmix.authserver.roleassignment.RegisteredClientRoleAssignmentPropertiesMapper;
 import io.jmix.authserver.roleassignment.RegisteredClientRoleAssignmentRepository;
+import io.jmix.authserver.service.OracleJdbcOAuth2AuthorizationService;
+import io.jmix.authserver.service.cleanup.OAuth2ExpiredTokenCleaner;
+import io.jmix.authserver.service.cleanup.impl.InMemoryOAuth2ExpiredTokenCleaner;
+import io.jmix.authserver.service.cleanup.impl.JdbcOAuth2ExpiredTokenCleaner;
+import io.jmix.authserver.service.mapper.JdbcOAuth2AuthorizationServiceObjectMapperCustomizer;
 import io.jmix.core.JmixSecurityFilterChainOrder;
+import io.jmix.data.persistence.DbmsType;
 import io.jmix.security.SecurityConfigurers;
 import io.jmix.security.util.JmixHttpSecurityUtils;
 import io.jmix.securityresourceserver.requestmatcher.CompositeResourceServerRequestMatcherProvider;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
+import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
+import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.resource.introspection.OpaqueTokenIntrospector;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.authentication.logout.SimpleUrlLogoutSuccessHandler;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatchers;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -63,6 +86,8 @@ import static org.springframework.security.web.util.matcher.AntPathRequestMatche
 @Import({AuthServerConfiguration.class})
 @ConditionalOnProperty(name = "jmix.authserver.use-default-configuration", matchIfMissing = true)
 public class AuthServerAutoConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthServerAutoConfiguration.class);
 
     @Configuration(proxyBeanMethods = false)
     @Order(LoginPageConfiguration.ORDER)
@@ -144,10 +169,94 @@ public class AuthServerAutoConfiguration {
             return http.build();
         }
 
+        @Bean("authsr_AuthorizationServerLogoutSecurityFilterChain")
+        @Order(JmixSecurityFilterChainOrder.AUTHSERVER_AUTHORIZATION_SERVER + 5)
+        public SecurityFilterChain logoutSecurityFilterChain(HttpSecurity http,
+                                                             ServerProperties serverProperties,
+                                                             OAuth2AuthorizationService authorizationService,
+                                                             AuthServerProperties authServerProperties) throws Exception {
+            String sessionCookieName = getSessionCookieName(serverProperties);
+
+            http.securityMatcher("/logout")
+                    .csrf(AbstractHttpConfigurer::disable)
+                    .cors(Customizer.withDefaults())
+                    .authorizeHttpRequests(authorize -> authorize
+                            .requestMatchers("/logout").authenticated()
+                    ).logout(logout -> logout
+                            .logoutUrl("/logout")
+                            .addLogoutHandler(new TokenRevocationLogoutHandler(authorizationService, authServerProperties))
+                            .logoutSuccessHandler(createLogoutSuccessHandler())
+                            .invalidateHttpSession(true)
+                            .clearAuthentication(true)
+                            .deleteCookies(sessionCookieName)
+                            .logoutRequestMatcher(createLogoutRequestMatcher("/logout"))
+                    );
+            return http.build();
+        }
+
+        protected LogoutSuccessHandler createLogoutSuccessHandler() {
+            SimpleUrlLogoutSuccessHandler successHandler = new SimpleUrlLogoutSuccessHandler();
+            if (StringUtils.isNotBlank(authServerProperties.getPostLogoutUrlRedirectParameterName())) {
+                successHandler.setTargetUrlParameter(authServerProperties.getPostLogoutUrlRedirectParameterName());
+            }
+            successHandler.setUseReferer(authServerProperties.isUseRefererPostLogout());
+            return successHandler;
+        }
+
+        protected String getSessionCookieName(ServerProperties serverProperties) {
+            String sessionCookieName = serverProperties.getServlet().getSession().getCookie().getName();
+            if (StringUtils.isBlank(sessionCookieName)) {
+                sessionCookieName = "JSESSIONID";
+            }
+            return sessionCookieName;
+        }
+
+        protected RequestMatcher createLogoutRequestMatcher(String logoutUrl) {
+            return RequestMatchers.anyOf(
+                    new AntPathRequestMatcher(logoutUrl, "GET"),
+                    new AntPathRequestMatcher(logoutUrl, "POST")
+            );
+        }
+
         @Bean
         @ConditionalOnMissingBean
-        public OAuth2AuthorizationService oAuth2AuthorizationService() {
-            return new InMemoryOAuth2AuthorizationService();
+        public OAuth2AuthorizationService oAuth2AuthorizationService(JdbcOperations jdbcOperations,
+                                                                     RegisteredClientRepository registeredClientRepository,
+                                                                     ObjectProvider<JdbcOAuth2AuthorizationServiceObjectMapperCustomizer> objectMapperCustomizers,
+                                                                     DbmsType dbmsType) {
+            if (authServerProperties.isUseInMemoryAuthorizationService()) {
+                log.debug("Use {}", InMemoryOAuth2AuthorizationService.class);
+                return new InMemoryOAuth2AuthorizationService();
+            } else {
+                JdbcOAuth2AuthorizationService authorizationService = createJdbcOAuth2AuthorizationService(
+                        jdbcOperations, registeredClientRepository, dbmsType
+                );
+                log.debug("Use {}", authorizationService.getClass());
+
+                ObjectMapper objectMapper = createObjectMapper(objectMapperCustomizers);
+
+                JdbcOAuth2AuthorizationService.OAuth2AuthorizationRowMapper rowMapper =
+                        new JdbcOAuth2AuthorizationService.OAuth2AuthorizationRowMapper(registeredClientRepository);
+                rowMapper.setObjectMapper(objectMapper);
+                authorizationService.setAuthorizationRowMapper(rowMapper);
+
+                JdbcOAuth2AuthorizationService.OAuth2AuthorizationParametersMapper parametersMapper =
+                        new JdbcOAuth2AuthorizationService.OAuth2AuthorizationParametersMapper();
+                parametersMapper.setObjectMapper(objectMapper);
+                authorizationService.setAuthorizationParametersMapper(parametersMapper);
+
+                return authorizationService;
+            }
+        }
+
+        @Bean("authsr_OAuth2ExpiredTokenCleaner")
+        @ConditionalOnMissingBean
+        public OAuth2ExpiredTokenCleaner OAuth2ExpiredTokenCleaner(JdbcOperations jdbcOperations) {
+            if (authServerProperties.isUseInMemoryAuthorizationService()) {
+                return new InMemoryOAuth2ExpiredTokenCleaner();
+            } else {
+                return new JdbcOAuth2ExpiredTokenCleaner(jdbcOperations);
+            }
         }
 
         @Bean
@@ -167,6 +276,27 @@ public class AuthServerAutoConfiguration {
         @Order(100)
         AuthServerAuthenticationPrincipalResolver authServerAuthenticationPrincipalResolver() {
             return new AuthServerAuthenticationPrincipalResolver();
+        }
+
+        protected JdbcOAuth2AuthorizationService createJdbcOAuth2AuthorizationService(JdbcOperations jdbcOperations,
+                                                                                      RegisteredClientRepository registeredClientRepository,
+                                                                                      DbmsType dbmsType) {
+            if ("ORACLE".equals(dbmsType.getType())) {
+                return new OracleJdbcOAuth2AuthorizationService(jdbcOperations, registeredClientRepository);
+            } else {
+                return new JdbcOAuth2AuthorizationService(jdbcOperations, registeredClientRepository);
+            }
+        }
+
+        protected ObjectMapper createObjectMapper(ObjectProvider<JdbcOAuth2AuthorizationServiceObjectMapperCustomizer> objectMapperCustomizers) {
+            ObjectMapper objectMapper = new ObjectMapper();
+            ClassLoader classLoader = JdbcOAuth2AuthorizationService.class.getClassLoader();
+            objectMapper.registerModules(SecurityJackson2Modules.getModules(classLoader));
+            objectMapper.registerModule(new OAuth2AuthorizationServerJackson2Module());
+
+            objectMapperCustomizers.orderedStream().forEach(customizer -> customizer.customize(objectMapper));
+
+            return objectMapper;
         }
     }
 
@@ -200,6 +330,7 @@ public class AuthServerAutoConfiguration {
 
             JmixHttpSecurityUtils.configureAnonymous(http);
             JmixHttpSecurityUtils.configureFrameOptions(http);
+            JmixHttpSecurityUtils.configureSessionManagement(http);
 
             AsResourceServerEventSecurityFilter asResourceServerEventSecurityFilter = new AsResourceServerEventSecurityFilter(applicationEventPublisher);
             http.addFilterAfter(asResourceServerEventSecurityFilter, AuthorizationFilter.class);

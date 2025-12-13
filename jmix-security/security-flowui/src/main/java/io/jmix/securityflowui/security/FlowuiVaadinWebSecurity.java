@@ -21,24 +21,32 @@ import com.vaadin.flow.internal.AnnotationReader;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.internal.RouteUtil;
 import com.vaadin.flow.server.VaadinServletContext;
+import com.vaadin.flow.spring.security.VaadinDefaultRequestCache;
 import com.vaadin.flow.spring.security.VaadinWebSecurity;
 import io.jmix.flowui.UiProperties;
 import io.jmix.flowui.view.View;
 import io.jmix.flowui.view.ViewRegistry;
+import io.jmix.security.configurer.JmixRequestCacheRequestMatcher;
 import io.jmix.security.util.JmixHttpSecurityUtils;
 import jakarta.servlet.ServletContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.h2.H2ConsoleProperties;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.servlet.util.matcher.MvcRequestMatcher;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.*;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.handler.HandlerMappingIntrospector;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -52,7 +60,9 @@ public class FlowuiVaadinWebSecurity extends VaadinWebSecurity {
     protected ViewRegistry viewRegistry;
     protected ApplicationContext applicationContext;
     protected ServerProperties serverProperties;
+    protected H2ConsoleProperties h2ConsoleProperties;
     protected ServletContext servletContext;
+    protected List<JmixRequestCacheRequestMatcher> requestCacheRequestMatchers;
 
     @Autowired
     public void setApplicationContext(ApplicationContext applicationContext) {
@@ -74,9 +84,23 @@ public class FlowuiVaadinWebSecurity extends VaadinWebSecurity {
         this.serverProperties = serverProperties;
     }
 
+    @Autowired(required = false)
+    public void setH2ConsoleProperties(H2ConsoleProperties h2ConsoleProperties) {
+        this.h2ConsoleProperties = h2ConsoleProperties;
+    }
+
     @Autowired
     public void setServletContext(ServletContext servletContext) {
         this.servletContext = servletContext;
+    }
+
+    @Autowired
+    public void setVaadinDefaultRequestCache(VaadinDefaultRequestCache vaadinDefaultRequestCache,
+                                             ObjectProvider<List<JmixRequestCacheRequestMatcher>> requestCacheRequestMatchersProvider) {
+        // Configure request cache to do not save resource
+        // requests as they are not valid redirect routes.
+        this.requestCacheRequestMatchers = requestCacheRequestMatchersProvider.getIfAvailable(Collections::emptyList);
+        vaadinDefaultRequestCache.setDelegateRequestCache(getDelegateRequestCache());
     }
 
     @Override
@@ -169,5 +193,19 @@ public class FlowuiVaadinWebSecurity extends VaadinWebSecurity {
     protected void configure(WebSecurity web) throws Exception {
         super.configure(web);
         web.ignoring().requestMatchers(new AntPathRequestMatcher("/VAADIN/push/**"));
+
+        if (h2ConsoleProperties != null && h2ConsoleProperties.isEnabled()) {
+            web.ignoring().requestMatchers(new AntPathRequestMatcher(h2ConsoleProperties.getPath() + "/**"));
+        }
+    }
+
+    protected RequestCache getDelegateRequestCache() {
+        HttpSessionRequestCache cache = new HttpSessionRequestCache();
+        cache.setRequestMatcher(createViewPathRequestMatcher(viewRegistry));
+        return cache;
+    }
+
+    protected RequestMatcher createViewPathRequestMatcher(ViewRegistry viewRegistry) {
+        return new JmixViewPathRequestMatcher(viewRegistry, requestCacheRequestMatchers);
     }
 }

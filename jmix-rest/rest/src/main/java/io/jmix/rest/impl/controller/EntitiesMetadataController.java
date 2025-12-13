@@ -32,7 +32,7 @@ import java.util.Collection;
  * at the moment.
  */
 @RestController("rest_EntitiesMetadataController")
-@RequestMapping(value = "/rest/metadata", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+@RequestMapping(value = "${jmix.rest.base-path}${jmix.rest.metadata-path}", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
 public class EntitiesMetadataController {
     @Autowired
     protected EntitiesMetadataControllerManager controllerManager;
@@ -45,12 +45,6 @@ public class EntitiesMetadataController {
     @GetMapping("/entities")
     public Collection<MetaClassInfo> getAllMetaClassesInfo() {
         return controllerManager.getAllMetaClassesInfo();
-    }
-
-    @GetMapping("/entities/{entityName}/views/{viewName}")
-    public String getView(@PathVariable String entityName,
-                          @PathVariable String viewName) {
-        return controllerManager.getFetchPlan(entityName, viewName);
     }
 
     @GetMapping("/entities/{entityName}/fetchPlans/{fetchPlanName}")

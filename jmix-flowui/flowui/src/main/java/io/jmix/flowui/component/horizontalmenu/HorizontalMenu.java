@@ -100,6 +100,26 @@ public class HorizontalMenu extends Composite<JmixMenuBar>
     }
 
     /**
+     * Gets whether the horizontal menu uses tab navigation.
+     *
+     * @return {@code true} if the top-level menu items is traversable by tab
+     * instead of arrow keys (i.e. disabling roving tabindex)
+     */
+    public boolean isTabNavigation() {
+        return getContent().isTabNavigation();
+    }
+
+    /**
+     * Sets tab navigation for the horizontal menu.
+     *
+     * @param tabNavigation if {@code true}, the top-level menu items is traversable by
+     *                      tab instead of arrow keys (i.e. disabling roving tabindex)
+     */
+    public void setTabNavigation(boolean tabNavigation) {
+        getContent().setTabNavigation(tabNavigation);
+    }
+
+    /**
      * Returns menu item from the menu (including non-root items) by its id.
      *
      * @param id menu item id
@@ -190,6 +210,7 @@ public class HorizontalMenu extends Composite<JmixMenuBar>
         JmixMenuItem wrapper = index == ADD_TO_END_INDEX
                 ? hasMenuItems.addItem(menuItem)
                 : hasMenuItems.addItemAtIndex(index, menuItem);
+        wrapper.setId(getMenuItemId(menuItem));
         wrapper.addClassName(ITEM_WRAPPER_CLASS_NAME);
         menuItem.setMenuItemWrapper(wrapper);
 

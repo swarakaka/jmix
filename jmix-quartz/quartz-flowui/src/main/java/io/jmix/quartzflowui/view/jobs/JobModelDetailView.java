@@ -17,14 +17,19 @@
 package io.jmix.quartzflowui.view.jobs;
 
 import com.google.common.base.Strings;
+import com.google.common.base.Supplier;
 import com.vaadin.flow.component.AbstractField;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.combobox.ComboBoxBase;
 import com.vaadin.flow.component.grid.editor.EditorCancelEvent;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.renderer.Renderer;
 import com.vaadin.flow.data.renderer.TextRenderer;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouteAlias;
+import io.jmix.core.AccessManager;
+import io.jmix.core.SaveContext;
 import io.jmix.core.UnconstrainedDataManager;
 import io.jmix.flowui.component.grid.DataGrid;
 import io.jmix.flowui.component.validation.ValidationErrors;
@@ -32,22 +37,23 @@ import io.jmix.flowui.kit.action.ActionPerformedEvent;
 import io.jmix.flowui.model.CollectionContainer;
 import io.jmix.flowui.view.*;
 import io.jmix.quartz.model.*;
-import io.jmix.quartz.util.ScheduleDescriptionProvider;
 import io.jmix.quartz.service.QuartzService;
 import io.jmix.quartz.util.QuartzJobClassFinder;
+import io.jmix.quartz.util.ScheduleDescriptionProvider;
+import io.jmix.quartzflowui.accesscontext.UiQuartzAdministrationAccessContext;
+import org.apache.commons.lang3.StringUtils;
 import org.quartz.TriggerKey;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.text.SimpleDateFormat;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-@Route(value = "quartz/jobmodels/:id", layout = DefaultMainViewParent.class)
+@RouteAlias(value = "quartz/jobmodels/:id", layout = DefaultMainViewParent.class)
+@Route(value = "quartz/job-models/:id", layout = DefaultMainViewParent.class)
 @ViewController("quartz_JobModel.detail")
 @ViewDescriptor("job-model-detail-view.xml")
 @EditedEntityContainer("jobModelDc")
@@ -66,32 +72,34 @@ public class JobModelDetailView extends StandardDetailView<JobModel> {
     protected DataGrid<TriggerModel> triggerModelTable;
     @ViewComponent
     protected Button addDataParamButton;
-
     @ViewComponent
     protected CollectionContainer<JobDataParameterModel> jobDataParamsDc;
     @ViewComponent
     protected CollectionContainer<TriggerModel> triggerModelDc;
+    @ViewComponent
+    protected MessageBundle messageBundle;
 
     @Autowired
     protected QuartzService quartzService;
     @Autowired
     protected QuartzJobClassFinder quartzJobClassFinder;
     @Autowired
-    protected MessageBundle messageBundle;
-    @Autowired
     protected UnconstrainedDataManager dataManager;
     @Autowired
     protected ScheduleDescriptionProvider scheduleDescriptionProvider;
+    @Autowired
+    protected AccessManager accessManager;
+
     protected boolean replaceJobIfExists = true;
     protected boolean deleteObsoleteJob = false;
     protected String obsoleteJobName = null;
     protected String obsoleteJobGroup = null;
     protected List<String> jobGroupNames;
 
+    protected boolean administrationPermitted;
+
     @Subscribe
     protected void onInit(View.InitEvent event) {
-        initModelTable();
-
         jobGroupNames = quartzService.getJobGroupNames();
         jobGroupField.setItems(jobGroupNames);
 
@@ -99,6 +107,14 @@ public class JobModelDetailView extends StandardDetailView<JobModel> {
         jobClassField.setItems(existedJobsClassNames);
 
         jobDataParamsTable.getEditor().addCancelListener(this::onJobDataParameterEditorCancel);
+
+        applySecurityConstraints();
+    }
+
+    protected void applySecurityConstraints() {
+        UiQuartzAdministrationAccessContext accessContext = new UiQuartzAdministrationAccessContext();
+        accessManager.applyRegisteredConstraints(accessContext);
+        administrationPermitted = accessContext.isPermitted();
     }
 
     protected void onJobDataParameterEditorCancel(EditorCancelEvent<JobDataParameterModel> event) {
@@ -109,35 +125,35 @@ public class JobModelDetailView extends StandardDetailView<JobModel> {
         }
     }
 
-    protected void initModelTable() {
-        triggerModelTable.addColumn(new TextRenderer<>(trigger -> scheduleDescriptionProvider.getScheduleDescription(trigger)))
-                .setHeader(messageBundle.getMessage("column.triggerScheduleDescription.header"))
-                .setResizable(true)
-                .setAutoWidth(true);
-        triggerModelTable.addColumn(entity -> entity.getStartDate() != null ?
-                        new SimpleDateFormat(messageBundle.getMessage("dateTimeWithSeconds"))
-                                .format(entity.getStartDate()) : "")
-                .setResizable(false)
-                .setHeader(messageBundle.getMessage("column.startDate.header"))
-                .setAutoWidth(true);
-        triggerModelTable.addColumn(entity -> entity.getLastFireDate() != null ?
-                        new SimpleDateFormat(messageBundle.getMessage("dateTimeWithSeconds"))
-                                .format(entity.getLastFireDate()) : "")
-                .setResizable(false)
-                .setHeader(messageBundle.getMessage("column.lastFireDate.header"))
-                .setAutoWidth(true);
-        triggerModelTable.addColumn(entity -> entity.getNextFireDate() != null ?
-                        new SimpleDateFormat(messageBundle.getMessage("dateTimeWithSeconds"))
-                                .format(entity.getNextFireDate()) : "")
-                .setResizable(false)
-                .setHeader(messageBundle.getMessage("column.nextFireDate.header"))
-                .setAutoWidth(true);
-        triggerModelTable.addColumn(entity -> entity.getEndDate() != null ?
-                        new SimpleDateFormat(messageBundle.getMessage("dateTimeWithSeconds"))
-                                .format(entity.getEndDate()) : "")
-                .setResizable(false)
-                .setHeader(messageBundle.getMessage("column.endDate.header"))
-                .setAutoWidth(true);
+    @Supply(to = "triggerModelTable.triggerDescription", subject = "renderer")
+    protected Renderer<TriggerModel> triggerModelTableTriggerDescriptionRenderer() {
+        return new TextRenderer<>(scheduleDescriptionProvider::getScheduleDescription);
+    }
+
+    @Supply(to = "triggerModelTable.startDate", subject = "renderer")
+    protected Renderer<TriggerModel> triggerModelTableStartDateRenderer() {
+        return new TextRenderer<>(triggerModel -> getFormattedDate(triggerModel::getStartDate));
+    }
+
+    @Supply(to = "triggerModelTable.lastFireDate", subject = "renderer")
+    protected Renderer<TriggerModel> triggerModelTableLastFireDateRenderer() {
+        return new TextRenderer<>(triggerModel -> getFormattedDate(triggerModel::getLastFireDate));
+    }
+
+    @Supply(to = "triggerModelTable.nextFireDate", subject = "renderer")
+    protected Renderer<TriggerModel> triggerModelTableNextFireDateRenderer() {
+        return new TextRenderer<>(triggerModel -> getFormattedDate(triggerModel::getNextFireDate));
+    }
+
+    @Supply(to = "triggerModelTable.endDate", subject = "renderer")
+    protected Renderer<TriggerModel> triggerModelTableEndDateRenderer() {
+        return new TextRenderer<>(triggerModel -> getFormattedDate(triggerModel::getEndDate));
+    }
+
+    protected String getFormattedDate(Supplier<Date> dateSupplier) {
+        return dateSupplier.get() != null
+                ? new SimpleDateFormat(messageBundle.getMessage("dateTimeWithSeconds")).format(dateSupplier.get())
+                : StringUtils.EMPTY;
     }
 
     @Subscribe("jobGroupField")
@@ -188,14 +204,24 @@ public class JobModelDetailView extends StandardDetailView<JobModel> {
 
     @Override
     public void setReadOnly(boolean readOnly) {
-        super.setReadOnly(readOnly);
-        jobNameField.setReadOnly(readOnly);
-        jobGroupField.setReadOnly(readOnly);
-        jobClassField.setReadOnly(readOnly);
-        triggerModelTable.getAction("edit").setVisible(!readOnly);
-        triggerModelTable.getAction("read").setVisible(readOnly);
-        addDataParamButton.setEnabled(!readOnly);
-        jobDataParamsTable.setEnabled(!readOnly);
+        if (!administrationPermitted) {
+            // Access denied: block any modifications
+            super.setReadOnly(true);
+            this.triggerModelTable.getAction("edit").setVisible(false);
+            this.triggerModelTable.getAction("read").setVisible(true);
+            this.addDataParamButton.setEnabled(false);
+            this.jobDataParamsTable.setEnabled(false);
+        } else {
+            // Access granted: set availability based on business logic
+            super.setReadOnly(readOnly);
+            jobNameField.setReadOnly(readOnly);
+            jobGroupField.setReadOnly(readOnly);
+            jobClassField.setReadOnly(readOnly);
+            triggerModelTable.getAction("edit").setVisible(!readOnly);
+            triggerModelTable.getAction("read").setVisible(readOnly);
+            addDataParamButton.setEnabled(!readOnly);
+            jobDataParamsTable.setEnabled(!readOnly);
+        }
     }
 
     @Subscribe
@@ -209,7 +235,6 @@ public class JobModelDetailView extends StandardDetailView<JobModel> {
 
         obsoleteJobName = getEditedEntity().getJobName();
         obsoleteJobGroup = getEditedEntity().getJobGroup();
-
     }
 
     public static <T> Predicate<T> distinctByKey(
@@ -298,6 +323,11 @@ public class JobModelDetailView extends StandardDetailView<JobModel> {
         }
 
         quartzService.updateQuartzJob(getEditedEntity(), jobDataParamsDc.getItems(), triggerModelDc.getItems(), replaceJobIfExists);
+    }
+
+    @Install(target = Target.DATA_CONTEXT)
+    private Set<Object> saveDelegate(final SaveContext saveContext) {
+        return saveContext.getEntitiesToSave();
     }
 
     @Subscribe("jobDataParamsTable.addNewDataParam")

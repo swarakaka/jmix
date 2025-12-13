@@ -39,8 +39,6 @@ import io.jmix.flowui.component.genericfilter.Configuration;
 import io.jmix.flowui.component.genericfilter.FilterUtils;
 import io.jmix.flowui.component.genericfilter.GenericFilter;
 import io.jmix.flowui.component.genericfilter.configuration.RunTimeConfiguration;
-import io.jmix.flowui.component.jpqlfilter.JpqlFilter;
-import io.jmix.flowui.component.logicalfilter.GroupFilter;
 import io.jmix.flowui.component.logicalfilter.LogicalFilterComponent;
 import io.jmix.flowui.component.logicalfilter.LogicalFilterComponent.FilterComponentsChangeEvent;
 import io.jmix.flowui.component.propertyfilter.PropertyFilter;
@@ -61,7 +59,13 @@ import java.util.function.Predicate;
 import static io.jmix.flowui.facet.urlqueryparameters.FilterUrlQueryParametersSupport.SEPARATOR;
 import static java.util.Objects.requireNonNull;
 
-public class GenericFilterUrlQueryParametersBinder extends AbstractUrlQueryParametersBinder {
+/**
+ * A binder class for managing URL query parameters related to a {@link GenericFilter} component.
+ * This class facilitates the serialization and deserialization of query parameters,
+ * manages component state, and ensures updates based on the URL query parameters or filter configuration changes.
+ */
+public class GenericFilterUrlQueryParametersBinder extends AbstractUrlQueryParametersBinder
+        implements HasInitialState {
 
     private static final Logger log = LoggerFactory.getLogger(GenericFilterUrlQueryParametersBinder.class);
 
@@ -86,6 +90,8 @@ public class GenericFilterUrlQueryParametersBinder extends AbstractUrlQueryParam
 
     protected Registration filterComponentsChangeRegistration;
 
+    protected InitialState initialState;
+
     public GenericFilterUrlQueryParametersBinder(GenericFilter filter,
                                                  UrlParamSerializer urlParamSerializer,
                                                  ApplicationContext applicationContext) {
@@ -107,6 +113,11 @@ public class GenericFilterUrlQueryParametersBinder extends AbstractUrlQueryParam
         filter.addConfigurationChangeListener(this::onConfigurationChanged);
         bindFilterComponentsChangeListener(filter);
         bindDataLoaderListener(filter);
+    }
+
+    @Override
+    public void saveInitialState() {
+        initialState = new InitialState(filter.getCurrentConfiguration());
     }
 
     protected void bindDataLoaderListener(GenericFilter filter) {
@@ -140,6 +151,14 @@ public class GenericFilterUrlQueryParametersBinder extends AbstractUrlQueryParam
         fireQueryParametersChanged(new UrlQueryParametersChangeEvent(this, queryParameters));
     }
 
+    /**
+     * Serializes query parameters into an immutable map. The method processes the current
+     * configuration and its associated conditions to generate query parameters.
+     *
+     * @return an immutable map containing serialized query parameters. The keys represent
+     * parameter types (e.g., configuration and condition parameters), while the
+     * values are lists of their respective serialized representations.
+     */
     public ImmutableMap<String, List<String>> serializeQueryParameters() {
         Configuration currentConfiguration = filter.getCurrentConfiguration();
         LogicalCondition queryCondition = currentConfiguration.getQueryCondition();
@@ -182,6 +201,15 @@ public class GenericFilterUrlQueryParametersBinder extends AbstractUrlQueryParam
                 property + SEPARATOR +
                 operation + SEPARATOR +
                 parameterValue;
+    }
+
+    @Override
+    public void applyInitialState() {
+        if (initialState.configuration instanceof RunTimeConfiguration runTimeConfiguration) {
+            runTimeConfiguration.getRootLogicalFilterComponent().removeAll();
+        }
+
+        filter.setCurrentConfiguration(initialState.configuration);
     }
 
     @Override
@@ -299,13 +327,16 @@ public class GenericFilterUrlQueryParametersBinder extends AbstractUrlQueryParam
         if (configurationComponent instanceof PropertyFilter<?> configurationPropertyFilter
                 && filterComponent instanceof PropertyFilter<?> propertyFilter) {
             return updatePropertyCondition(configurationPropertyFilter, propertyFilter);
-        } else if (configurationComponent instanceof JpqlFilter<?> configurationJpqlFilter
+        }
+
+        /* else if (configurationComponent instanceof JpqlFilter<?> configurationJpqlFilter
                 && filterComponent instanceof JpqlFilter<?> jpqlFilter) {
             //TODO: kremnevda, implement 02.06.2023
         } else if (configurationComponent instanceof GroupFilter configurationGroupFilter
                 && filterComponent instanceof GroupFilter groupFilter) {
             //TODO: kremnevda, implement 02.06.2023
         }
+        */
 
         return null;
     }
@@ -409,18 +440,40 @@ public class GenericFilterUrlQueryParametersBinder extends AbstractUrlQueryParam
         }
     }
 
+    /**
+     * Returns the current configuration parameter name for the URL. If the parameter
+     * is null or empty, a default name is returned.
+     *
+     * @return the configuration parameter name if set, otherwise the default configuration parameter name
+     */
     public String getConfigurationParam() {
         return Strings.isNullOrEmpty(configurationParam) ? DEFAULT_CONFIGURATION_PARAM : configurationParam;
     }
 
-    public String getConditionParam() {
-        return Strings.isNullOrEmpty(conditionParam) ? DEFAULT_CONDITION_PARAM : conditionParam;
-    }
-
+    /**
+     * Sets the condition parameter name for the URL.
+     *
+     * @param conditionParam the condition parameter name to set
+     */
     public void setConfigurationParam(@Nullable String conditionParam) {
         this.conditionParam = conditionParam;
     }
 
+    /**
+     * Returns the current condition parameter name for the URL. If the condition parameter
+     * is null or empty, a default name is returned.
+     *
+     * @return the condition parameter name if set, otherwise the default condition parameter name
+     */
+    public String getConditionParam() {
+        return Strings.isNullOrEmpty(conditionParam) ? DEFAULT_CONDITION_PARAM : conditionParam;
+    }
+
+    /**
+     * Sets the condition parameter name for the URL.
+     *
+     * @param conditionParam the condition parameter name to set
+     */
     public void setConditionParam(@Nullable String conditionParam) {
         this.conditionParam = conditionParam;
     }
@@ -451,5 +504,13 @@ public class GenericFilterUrlQueryParametersBinder extends AbstractUrlQueryParam
     @Override
     public Component getComponent() {
         return filter;
+    }
+
+    /**
+     * A POJO class for storing configuration of the {@link GenericFilter}'s initial state.
+     *
+     * @param configuration the value of {@code configuration} at initialization
+     */
+    protected record InitialState(Configuration configuration) {
     }
 }

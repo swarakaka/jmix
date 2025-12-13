@@ -16,10 +16,7 @@
 
 package test_support;
 
-import io.jmix.core.CoreConfiguration;
-import io.jmix.core.JmixModules;
-import io.jmix.core.Resources;
-import io.jmix.core.Stores;
+import io.jmix.core.*;
 import io.jmix.core.annotation.JmixModule;
 import io.jmix.core.cluster.ClusterApplicationEventChannelSupplier;
 import io.jmix.core.cluster.LocalApplicationEventChannelSupplier;
@@ -32,8 +29,10 @@ import io.jmix.data.persistence.DbmsSpecifics;
 import io.jmix.eclipselink.EclipselinkConfiguration;
 import io.jmix.restds.RestDsConfiguration;
 import io.jmix.restds.impl.RestAuthenticationManagerSupplier;
+import io.jmix.restds.filestorage.RestFileStorage;
 import io.jmix.restds.impl.RestPasswordAuthenticator;
 import io.jmix.restds.impl.RestTokenHolder;
+import io.jmix.samples.restds.common.SampleRestDsCommonConfiguration;
 import io.jmix.security.SecurityConfiguration;
 import io.jmix.security.authentication.StandardAuthenticationProvidersProducer;
 import jakarta.persistence.EntityManagerFactory;
@@ -52,6 +51,9 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.RestClient;
+
+import io.micrometer.observation.ObservationRegistry;
 import test_support.security.TestInMemoryUserRepository;
 import test_support.security.TestRestUserRepository;
 
@@ -62,8 +64,14 @@ import javax.sql.DataSource;
 @Import({RestDsConfiguration.class, SecurityConfiguration.class, EclipselinkConfiguration.class, DataConfiguration.class,
         CoreConfiguration.class})
 @PropertySource("classpath:/test_support/test-app.properties")
-@JmixModule(dependsOn = {RestDsConfiguration.class, SecurityConfiguration.class, EclipselinkConfiguration.class, DataConfiguration.class})
+@JmixModule(dependsOn = {RestDsConfiguration.class, SecurityConfiguration.class, EclipselinkConfiguration.class, DataConfiguration.class,
+        SampleRestDsCommonConfiguration.class})
 public class TestRestDsConfiguration {
+
+    @Bean
+    FileStorage restService1FileStorage() {
+        return new RestFileStorage("restService1", "fs");
+    }
 
     // In production code created by autoconfiguration
     @Bean("restds_RestAuthenticationManagerSupplier")
@@ -82,7 +90,6 @@ public class TestRestDsConfiguration {
     }
 
     @Bean
-    @Primary
     RestTokenHolder restTokenHolder() {
         return new ThreadLocalRestTokenHolder();
     }
@@ -151,5 +158,17 @@ public class TestRestDsConfiguration {
     @Primary
     public ClusterApplicationEventChannelSupplier clusterApplicationEventChannelSupplier() {
         return new LocalApplicationEventChannelSupplier();
+    }
+
+    @Bean
+    @Primary
+    public RestClient.Builder restClientBuilder(ObservationRegistry observationRegistry) {
+        return RestClient.builder().observationRegistry(observationRegistry);
+    }
+
+    @Bean
+    @Primary
+    public ObservationRegistry observationRegistry() {
+        return ObservationRegistry.NOOP;
     }
 }

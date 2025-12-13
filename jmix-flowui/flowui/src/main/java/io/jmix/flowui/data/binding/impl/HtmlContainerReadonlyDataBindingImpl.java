@@ -25,7 +25,6 @@ import io.jmix.core.entity.EntityValues;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.metamodel.model.MetaPropertyPath;
 import io.jmix.flowui.accesscontext.UiEntityAttributeContext;
-import io.jmix.flowui.component.formatter.CollectionFormatter;
 import io.jmix.flowui.data.EntityValueSource;
 import io.jmix.flowui.data.ValueSource;
 import io.jmix.flowui.data.binding.HtmlContainerReadonlyDataBinding;
@@ -38,17 +37,21 @@ import org.springframework.stereotype.Component;
 import static io.jmix.core.common.util.Preconditions.checkNotEmptyString;
 import static io.jmix.core.common.util.Preconditions.checkNotNullArgument;
 
+/**
+ * Implementation of {@link HtmlContainerReadonlyDataBinding}.
+ * This class provides functionality for binding an {@link HtmlContainer} with various data sources
+ * such as {@link ValueSource}, {@link InstanceContainer}, or {@link CollectionContainer}
+ * to display entity property values as text in the HTML container.
+ */
 @Component("flowui_HtmlContainerDataBinding")
 public class HtmlContainerReadonlyDataBindingImpl implements HtmlContainerReadonlyDataBinding {
 
     protected MetadataTools metadataTools;
-    protected CollectionFormatter collectionFormatter;
     protected AccessManager accessManager;
 
-    public HtmlContainerReadonlyDataBindingImpl(MetadataTools metadataTools, CollectionFormatter collectionFormatter,
+    public HtmlContainerReadonlyDataBindingImpl(MetadataTools metadataTools,
                                                 AccessManager accessManager) {
         this.metadataTools = metadataTools;
-        this.collectionFormatter = collectionFormatter;
         this.accessManager = accessManager;
     }
 

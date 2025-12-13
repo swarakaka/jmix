@@ -1,4 +1,4 @@
-// CAUTION: copied from @vaadin/tabsheet/theme/lumo/vaadin-tabsheet-styles.js [last update Vaadin 24.4.4]
+// CAUTION: copied from @vaadin/tabsheet/theme/lumo/vaadin-tabsheet-styles.js [last update Vaadin 24.9.0]
 import '@vaadin/vaadin-lumo-styles/color.js';
 import '@vaadin/vaadin-lumo-styles/spacing.js';
 import '@vaadin/vaadin-lumo-styles/typography.js';
@@ -38,6 +38,10 @@ const tabsheet = css`
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  :host([theme~='no-padding']) [part='content'] {
+    padding: 0;
   }
 `;
 

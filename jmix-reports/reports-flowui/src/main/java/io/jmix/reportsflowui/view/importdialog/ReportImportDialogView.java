@@ -40,12 +40,10 @@ public class ReportImportDialogView extends StandardView {
     @ViewComponent
     protected HorizontalLayout uploadBox;
 
-    @Autowired
-    protected TemporaryStorage temporaryStorage;
+    @ViewComponent
+    protected MessageBundle messageBundle;
     @Autowired
     protected ReportImportExport reportImportExport;
-    @Autowired
-    protected MessageBundle messageBundle;
     @Autowired
     protected Notifications notifications;
     @Autowired
@@ -66,9 +64,12 @@ public class ReportImportDialogView extends StandardView {
         upload = uiComponents.create(Upload.class);
         uploadBox.add(upload);
 
-        FileBuffer buffer = new FileBuffer();
-        upload.setReceiver(buffer);
+        upload.setReceiver(new FileBuffer());
         upload.setWidth("100%");
+
+        upload.addFileRemovedListener(e -> {
+            upload.setReceiver(new FileBuffer());
+        });
     }
 
     @Subscribe("closeBtn")

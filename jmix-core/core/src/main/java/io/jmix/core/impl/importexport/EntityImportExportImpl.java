@@ -19,6 +19,7 @@ package io.jmix.core.impl.importexport;
 import io.jmix.core.*;
 import io.jmix.core.accesscontext.InMemoryCrudEntityContext;
 import io.jmix.core.common.datastruct.Pair;
+import io.jmix.core.common.util.Preconditions;
 import io.jmix.core.entity.EntityPreconditions;
 import io.jmix.core.entity.EntitySystemAccess;
 import io.jmix.core.entity.EntityValues;
@@ -27,28 +28,28 @@ import io.jmix.core.impl.serialization.EntityTokenException;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.metamodel.model.MetaProperty;
 import io.jmix.core.metamodel.model.Range;
+import io.jmix.core.metamodel.model.Store;
 import io.jmix.core.validation.EntityValidationException;
 import io.jmix.core.validation.group.RestApiChecks;
-import org.apache.commons.compress.archivers.ArchiveEntry;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Valid;
+import jakarta.validation.Validator;
+import jakarta.validation.constraints.Null;
+import jakarta.validation.groups.Default;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
-import org.springframework.lang.Nullable;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Valid;
-import jakarta.validation.Validator;
-import jakarta.validation.groups.Default;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.CRC32;
 
@@ -104,12 +105,12 @@ public class EntityImportExportImpl implements EntityImportExport {
     protected EntityAttributeImportExtensionResolver extensionResolver;
 
     @Override
-    public byte[] exportEntitiesToZIP(Collection<Object> entities, FetchPlan fetchPlan) {
+    public byte[] exportEntitiesToZIP(Collection<?> entities, FetchPlan fetchPlan) {
         return exportEntitiesToZIP(reloadEntities(entities, fetchPlan));
     }
 
     @Override
-    public byte[] exportEntitiesToZIP(Collection<Object> entities) {
+    public byte[] exportEntitiesToZIP(Collection<?> entities) {
         String json = entitySerialization.toJson(entities, null, EntitySerializationOption.COMPACT_REPEATED_ENTITIES);
         byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
 
@@ -117,7 +118,7 @@ public class EntityImportExportImpl implements EntityImportExport {
         ZipArchiveOutputStream zipOutputStream = new ZipArchiveOutputStream(byteArrayOutputStream);
         zipOutputStream.setMethod(ZipArchiveOutputStream.STORED);
         zipOutputStream.setEncoding(StandardCharsets.UTF_8.name());
-        ArchiveEntry singleDesignEntry = newStoredEntry("entities.json", jsonBytes);
+        ZipArchiveEntry singleDesignEntry = newStoredEntry("entities.json", jsonBytes);
         try {
             zipOutputStream.putArchiveEntry(singleDesignEntry);
             zipOutputStream.write(jsonBytes);
@@ -131,34 +132,33 @@ public class EntityImportExportImpl implements EntityImportExport {
     }
 
     @Override
-    public String exportEntitiesToJSON(Collection<Object> entities, FetchPlan fetchPlan) {
+    public String exportEntitiesToJSON(Collection<?> entities, FetchPlan fetchPlan) {
         return exportEntitiesToJSON(reloadEntities(entities, fetchPlan));
     }
 
     @Override
-    public String exportEntitiesToJSON(Collection<Object> entities) {
+    public String exportEntitiesToJSON(Collection<?> entities) {
         return entitySerialization.toJson(entities, null,
                 EntitySerializationOption.COMPACT_REPEATED_ENTITIES, EntitySerializationOption.PRETTY_PRINT);
     }
 
-    protected Collection reloadEntities(Collection<Object> entities, FetchPlan fetchPlan) {
-        List ids = new ArrayList(entities.size());
+    protected Collection<?> reloadEntities(Collection<?> entities, FetchPlan fetchPlan) {
+        List<Object> ids = new ArrayList<>(entities.size());
         for (Object entity : entities) {
             ids.add(EntityValues.getId(entity));
         }
 
+        // fetchPlan.getEntityClass() is used instead of entity.getClass() deliberately to be able
+        // to reload and export JPA-counterparts of DTO entities, e.g. in security roles
         MetaClass metaClass = metadata.getClass(fetchPlan.getEntityClass());
-        LoadContext.Query query = new LoadContext.Query("select e from " + metaClass.getName() + " e where e.id in :ids")
-                .setParameter("ids", ids);
-        LoadContext<?> ctx = new LoadContext(metadata.getClass(fetchPlan.getEntityClass()))
-                .setHint("jmix.softDeletion", false)
-                .setQuery(query)
+        LoadContext<?> ctx = new LoadContext<>(metaClass)
+                .setIds(ids)
                 .setFetchPlan(fetchPlan);
 
         return dataManager.loadList(ctx);
     }
 
-    protected ArchiveEntry newStoredEntry(String name, byte[] data) {
+    protected ZipArchiveEntry newStoredEntry(String name, byte[] data) {
         ZipArchiveEntry zipEntry = new ZipArchiveEntry(name);
         zipEntry.setSize(data.length);
         zipEntry.setCompressedSize(zipEntry.getSize());
@@ -169,8 +169,8 @@ public class EntityImportExportImpl implements EntityImportExport {
     }
 
     @Override
-    public Collection importEntitiesFromJson(String json, EntityImportPlan importPlan) {
-        Collection<?> result = new ArrayList<>();
+    public Collection<Object> importEntitiesFromJson(String json, EntityImportPlan importPlan) {
+        Collection<Object> result = new ArrayList<>();
         Collection<?> entities = entitySerialization.entitiesCollectionFromJson(json,
                 null,
                 EntitySerializationOption.COMPACT_REPEATED_ENTITIES);
@@ -206,22 +206,22 @@ public class EntityImportExportImpl implements EntityImportExport {
     }
 
     @Override
-    public Collection importEntities(Collection entities, EntityImportPlan importPlan) {
+    public Collection<Object> importEntities(Collection<?> entities, EntityImportPlan importPlan) {
         return importEntities(entities, importPlan, false, false);
     }
 
     @Override
-    public Collection importEntities(Collection entities, EntityImportPlan importPlan, boolean validate) {
+    public Collection<Object> importEntities(Collection<?> entities, EntityImportPlan importPlan, boolean validate) {
         return importEntities(entities, importPlan, validate, false);
     }
 
     @Override
-    public Collection importEntities(Collection entities, EntityImportPlan importPlan, boolean validate, boolean optimisticLocking) {
+    public Collection<Object> importEntities(Collection<?> entities, EntityImportPlan importPlan, boolean validate, boolean optimisticLocking) {
         return importEntities(entities, importPlan, validate, optimisticLocking, false);
     }
 
     @Override
-    public Collection<Object> importEntities(Collection<Object> entities, EntityImportPlan importPlan, boolean validate, boolean optimisticLocking, boolean additionComposition) {
+    public Collection<Object> importEntities(Collection<?> entities, EntityImportPlan importPlan, boolean validate, boolean optimisticLocking, boolean additionComposition) {
         List<ReferenceInfo> referenceInfoList = new ArrayList<>();
         SaveContext saveContext = new SaveContext();
         saveContext.setHint("jmix.softDeletion", false);
@@ -293,20 +293,20 @@ public class EntityImportExportImpl implements EntityImportExport {
 
     @Override
     public void importEntityIntoSaveContext(SaveContext saveContext, Object srcEntity, EntityImportPlan importPlan, boolean validate, boolean optimisticLocking, boolean additionComposition) {
+        EntityPreconditions.checkEntityType(srcEntity);
+        Object id = EntityValues.getId(srcEntity);
+        Preconditions.checkNotNullArgument(id, "entity id is null");
+
         List<ReferenceInfo> referenceInfoList = new ArrayList<>();
-        if (saveContext == null) {
-            return;
-        }
         saveContext.setHint("jmix.softDeletion", false);
 
-        EntityPreconditions.checkEntityType(srcEntity);
         FetchPlan fetchPlan = constructFetchPlanFromImportPlan(importPlan).build();
 
         LoadContext<?> ctx = new LoadContext<>(metadata.getClass(srcEntity))
                 .setFetchPlan(fetchPlan)
                 .setHint("jmix.dynattr", true)
                 .setHint("jmix.softDeletion", false)
-                .setId(EntityValues.getId(srcEntity))
+                .setId(id)
                 .setAccessConstraints(accessConstraintsRegistry.getConstraints());
         Object dstEntity = dataManager.load(ctx);
 
@@ -343,7 +343,9 @@ public class EntityImportExportImpl implements EntityImportExport {
             for (MetaProperty metaProperty : metadata.getClass(entity).getProperties()) {
                 //we need to exclude entities marked as @Valid starting checking the references of the root entity
                 if (metaProperty.getRange().isClass()
-                        && metadataTools.isAnnotationPresent(entity, metaProperty.getName(), Valid.class)) {
+                        && !metadataTools.isMethodBased(metaProperty)
+                        && metadataTools.isAnnotationPresent(entity, metaProperty.getName(), Valid.class)
+                        && entityStates.isLoaded(entity, metaProperty.getName())) {
                     Object validated = EntityValues.getValue(entity, metaProperty.getName());
                     if (validated != null && !(validated instanceof Collection)) {
                         validated = Collections.singletonList(validated);
@@ -357,7 +359,7 @@ public class EntityImportExportImpl implements EntityImportExport {
                 }
             }
         }
-        entitiesToValidate.removeAll(referencesToExclude.stream().map(Pair::getSecond).collect(Collectors.toList()));
+        entitiesToValidate.removeAll(referencesToExclude.stream().map(Pair::getSecond).toList());
 
         Set<ConstraintViolation<Object>> violations = new LinkedHashSet<>();
         entitiesToValidate.forEach(entity ->
@@ -421,9 +423,11 @@ public class EntityImportExportImpl implements EntityImportExport {
             } else if (metaProperty.getRange().isEnum()) {
                 EntityValues.setValue(dstEntity, propertyName, EntityValues.getValue(srcEntity, propertyName));
             } else if (metaProperty.getRange().isClass()) {
-                FetchPlan propertyFetchPlan = fetchPlan.getProperty(propertyName) != null ? fetchPlan.getProperty(propertyName).getFetchPlan() : null;
-                if (metadataTools.isEmbedded(metaProperty)) {
+                FetchPlanProperty fetchPlanProperty = fetchPlan.getProperty(propertyName);
+                FetchPlan propertyFetchPlan = fetchPlanProperty != null ? fetchPlanProperty.getFetchPlan() : null;
+                if (metaProperty.getType() == MetaProperty.Type.EMBEDDED) {
                     if (importPlanProperty.getPlan() != null) {
+                        Objects.requireNonNull(propertyFetchPlan, "Property '%s' fetch plan is null".formatted(propertyName));
                         Object embeddedEntity = importEmbeddedAttribute(srcEntity, dstEntity, createOp, importPlanProperty, propertyFetchPlan,
                                 saveContext, referenceInfoList, optimisticLocking);
                         EntityValues.setValue(dstEntity, propertyName, embeddedEntity);
@@ -540,15 +544,15 @@ public class EntityImportExportImpl implements EntityImportExport {
                                                        SaveContext saveContext,
                                                        Collection<ReferenceInfo> referenceInfoList,
                                                        boolean optimisticLocking) {
-        Collection collectionValue = EntityValues.getValue(srcEntity, importPlanProperty.getName());
-        Collection prevCollectionValue = EntityValues.getValue(dstEntity, importPlanProperty.getName());
+        Collection<Object> collectionValue = EntityValues.getValue(srcEntity, importPlanProperty.getName());
+        Collection<Object> prevCollectionValue = EntityValues.getValue(dstEntity, importPlanProperty.getName());
         MetaProperty metaProperty = metadata.getClass(srcEntity).getProperty(importPlanProperty.getName());
 
-        Collection dstFilteredIds = getFilteredIds(getSecurityState(dstEntity), metaProperty.getName());
-        Collection srcFilteredIds = getFilteredIds(getSecurityState(srcEntity), metaProperty.getName());
+        Collection<Object> dstFilteredIds = getFilteredIds(getSecurityState(dstEntity), metaProperty.getName());
+        Collection<Object> srcFilteredIds = getFilteredIds(getSecurityState(srcEntity), metaProperty.getName());
 
         if (importPlanProperty.getPlan() != null) {
-            Collection newCollectionValue = createNewCollection(metaProperty);
+            Collection<Object> newCollectionValue = createNewCollection(metaProperty);
             CollectionCompare.with()
                     .onCreate(e -> {
                         if (!dstFilteredIds.contains(referenceToEntitySupport.getReferenceId(e))) {
@@ -714,12 +718,15 @@ public class EntityImportExportImpl implements EntityImportExport {
         MetaClass metaClass = metadata.getClass(importPlan.getEntityClass());
         for (EntityImportPlanProperty importPlanProperty : importPlan.getProperties()) {
             EntityImportPlan importPlanPropertyPlan = importPlanProperty.getPlan();
+            MetaProperty metaProperty = metaClass.getProperty(importPlanProperty.getName());
             if (importPlanPropertyPlan == null) {
-                MetaProperty metaProperty = metaClass.getProperty(importPlanProperty.getName());
                 if (metaProperty.isReadOnly()) continue;
                 fetchPlanBuilder.add(importPlanProperty.getName());
             } else {
                 fetchPlanBuilder.add(importPlanProperty.getName(), constructFetchPlanFromImportPlan(importPlanPropertyPlan));
+            }
+            if (metaProperty.getInverse() != null) {
+                fetchPlanBuilder.add(importPlanProperty.getName() + "." + metaProperty.getInverse().getName());
             }
         }
         return fetchPlanBuilder;
@@ -750,14 +757,19 @@ public class EntityImportExportImpl implements EntityImportExport {
     @Nullable
     protected Object findReferenceEntity(Object entity, EntityImportPlanProperty importPlanProperty, SaveContext saveContext,
                                          Set<Object> loadedEntities) {
+        if (!isStored(entity)) {
+            return entity;
+        }
         Object result = Stream.concat(loadedEntities.stream(), saveContext.getEntitiesToSave().stream())
                 .filter(item -> item.equals(entity))
                 .findFirst().orElse(null);
         if (result == null) {
+            Object id = EntityValues.getId(entity);
+            Preconditions.checkNotNullArgument(id, "entity id is null");
             LoadContext<?> ctx = new LoadContext<>(metadata.getClass(entity))
                     .setHint("jmix.softDeletion", false)
                     .setFetchPlan(fetchPlanRepository.getFetchPlan(metadata.getClass(entity).getJavaClass(), FetchPlan.INSTANCE_NAME))
-                    .setId(EntityValues.getId(entity));
+                    .setId(id);
             result = dataManager.load(ctx);
             if (result == null) {
                 if (importPlanProperty.getReferenceImportBehaviour() == ReferenceImportBehaviour.ERROR_ON_MISSING) {
@@ -769,6 +781,11 @@ public class EntityImportExportImpl implements EntityImportExport {
             }
         }
         return result;
+    }
+
+    private boolean isStored(Object entity) {
+        Store store = metadata.getClass(entity).getStore();
+        return !store.getName().equals(Stores.NOOP) && !store.getName().equals(Stores.UNDEFINED);
     }
 
     protected void assertToken(Object entity, FetchPlan fetchPlan) {
@@ -801,7 +818,8 @@ public class EntityImportExportImpl implements EntityImportExport {
         protected Object propertyValue;
         protected Object prevPropertyValue;
 
-        public ReferenceInfo(Object entity, SecurityState prevSecurityState, EntityImportPlanProperty planProperty, Object propertyValue, Object prevPropertyValue) {
+        public ReferenceInfo(Object entity, @Nullable SecurityState prevSecurityState, EntityImportPlanProperty planProperty,
+                             @Nullable Object propertyValue, @Nullable Object prevPropertyValue) {
             this.entity = entity;
             this.prevSecurityState = prevSecurityState;
             this.planProperty = planProperty;
@@ -813,6 +831,7 @@ public class EntityImportExportImpl implements EntityImportExport {
             return planProperty;
         }
 
+        @Nullable
         public Object getPrevPropertyValue() {
             return prevPropertyValue;
         }
@@ -825,6 +844,7 @@ public class EntityImportExportImpl implements EntityImportExport {
             return prevSecurityState;
         }
 
+        @Nullable
         public Object getPropertyValue() {
             return propertyValue;
         }

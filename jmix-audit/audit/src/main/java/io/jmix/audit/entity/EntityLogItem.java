@@ -25,7 +25,6 @@ import io.jmix.core.entity.annotation.SystemLevel;
 import io.jmix.core.metamodel.annotation.JmixEntity;
 import io.jmix.core.metamodel.annotation.JmixProperty;
 import io.jmix.core.metamodel.datatype.EnumClass;
-import io.jmix.data.entity.ReferenceToEntity;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 
@@ -98,6 +97,9 @@ public class EntityLogItem implements Serializable {
 
     @Column(name = "USERNAME")
     private String username;
+
+    @Column(name = "SUBSTITUTED_USERNAME")
+    private String substitutedUsername;
 
     @Column(name = "CHANGE_TYPE", length = 1)
     private String type;
@@ -237,5 +239,13 @@ public class EntityLogItem implements Serializable {
 
     public void setSysTenantId(String sysTenantId) {
         this.sysTenantId = sysTenantId;
+    }
+
+    public String getSubstitutedUsername() {
+        return substitutedUsername;
+    }
+
+    public void setSubstitutedUsername(String substitutedUsername) {
+        this.substitutedUsername = substitutedUsername;
     }
 }

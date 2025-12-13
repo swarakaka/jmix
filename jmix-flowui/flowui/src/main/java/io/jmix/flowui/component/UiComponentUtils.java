@@ -28,12 +28,15 @@ import io.jmix.core.FileStorageLocator;
 import io.jmix.core.common.util.Preconditions;
 import io.jmix.flowui.fragment.Fragment;
 import io.jmix.flowui.fragment.FragmentUtils;
+import io.jmix.flowui.kit.action.Action;
+import io.jmix.flowui.kit.component.HasActions;
 import io.jmix.flowui.kit.component.HasSubParts;
 import io.jmix.flowui.sys.ValuePathHelper;
 import io.jmix.flowui.view.View;
-import io.jmix.flowui.view.ViewChildrenVisitResult;
+import io.jmix.flowui.view.ViewControllerUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationListener;
 import org.springframework.lang.Nullable;
 
 import java.io.ByteArrayInputStream;
@@ -106,7 +109,8 @@ public final class UiComponentUtils {
         } else if (component instanceof Fragment<?> fragment) {
             return FragmentUtils.findComponent(fragment, id);
         } else if (UiComponentUtils.isContainer(component)) {
-            return UiComponentUtils.findComponent(component, id, UiComponentUtils::sameId);
+            return UiComponentUtils.findComponent(component, id,
+                    findFragment(component) == null ? UiComponentUtils::sameId : FragmentUtils::sameId);
         }
         return Optional.empty();
     }
@@ -502,6 +506,40 @@ public final class UiComponentUtils {
     }
 
     /**
+     * Returns a fragment which the passed component is attached.
+     *
+     * @param component the component to find a parent fragment
+     * @return a fragment to which the passed component is attached
+     * @throws IllegalStateException if a component isn't attached to a fragment
+     */
+    public static Fragment<?> getFragment(Component component) {
+        Fragment<?> fragment = findFragment(component);
+
+        if (fragment == null) {
+            throw new IllegalStateException("A component '%s' is not attached to a fragment"
+                    .formatted(component.getClass().getSimpleName()));
+        }
+
+        return fragment;
+    }
+
+    /**
+     * Returns a fragment to which the passed component is attached, {@code null} otherwise.
+     *
+     * @param component the component ti find a parent fragment
+     * @return a fragment to which the passed component is attached, {@code null} otherwise
+     */
+    @Nullable
+    public static Fragment<?> findFragment(Component component) {
+        if (component instanceof Fragment) {
+            return (Fragment<?>) component;
+        }
+
+        Optional<Component> parent = component.getParent();
+        return parent.map(UiComponentUtils::findFragment).orElse(null);
+    }
+
+    /**
      * Returns the currently active view shown in this UI.
      * <p>
      * Note, that the current route might not be initialized if this method
@@ -623,7 +661,6 @@ public final class UiComponentUtils {
      * @param <V>       value type
      * @return the current component value
      */
-    @SuppressWarnings("unchecked")
     @Nullable
     public static <V> V getValue(HasValue<?, V> component) {
         return component instanceof SupportsTypedValue
@@ -638,7 +675,6 @@ public final class UiComponentUtils {
      * @param value     the value to set
      * @param <V>       value type
      */
-    @SuppressWarnings("unchecked")
     public static <V> void setValue(HasValue<?, V> component, @Nullable V value) {
         if (component instanceof SupportsTypedValue) {
             ((SupportsTypedValue<?, ?, V, ?>) component).setTypedValue(value);
@@ -648,9 +684,15 @@ public final class UiComponentUtils {
     }
 
     /**
-     * Copies the value to the clipboard using an asynchronous JavaScript function call from the UI DOM element.
+     * Writes the value to the clipboard using an asynchronous JavaScript function call from the UI DOM element.
+     * <p>
+     * NOTE: It's not guaranteed that this method will write a value to the clipboard due to "user activation",
+     * which means that an error may occur when a code is not executed as a direct result of the end user clicking
+     * or tapping on an HTML element (e.g., {@code <button>}).
      *
      * @param valueToCopy the value to copy
+     * @see <a href="https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/User_activation">User activation</a>
+     * @see <a href="https://developer.mozilla.org/en-US/docs/Web/API/Clipboard_API">Clipboard API</a>
      */
     public static PendingJavaScriptResult copyToClipboard(String valueToCopy) {
         return UI.getCurrent().getElement().executeJs(getCopyToClipboardScript(), valueToCopy);
@@ -684,55 +726,141 @@ public final class UiComponentUtils {
             try {
                 return uri.toURL().toString();
             } catch (MalformedURLException e) {
-                throw new IllegalArgumentException("Cannot convert provided URI `" + uri + "' to URL", e);
+                throw new IllegalArgumentException("Cannot convert provided URI '" + uri + "' to URL", e);
             }
         }
 
         return null;
     }
 
-    public static void walkComponents(View<?> view, Consumer<ViewChildrenVisitResult> viewChildrenVisitResultConsumer) {
-        __walkComponentsInternal(view, UiComponentUtils.getComponents(view), viewChildrenVisitResultConsumer, new HashSet<Component>());
-    }
-
     /**
-     * Gets JavaScript function for copying a value to the clipboard. A temporary invisible
-     * {@code textarea} DOM element is used for copying.
+     * Generates a JavaScript script for copying text to the clipboard. The script first attempts to use
+     * the modern Clipboard API. If the Clipboard API is unavailable or fails, it falls back to using
+     * the {@code document.execCommand} method as a compatibility solution.
      *
-     * @return JavaScript copy function script
+     * @return a string containing the JavaScript code for clipboard manipulation
      */
     private static String getCopyToClipboardScript() {
         return """
-                   const textarea = document.createElement("textarea");
-                   textarea.value = $0;
+                const text = $0;
+                try {
+                    // Attempt to use the modern Clipboard API first
+                    // This might fail if the server round-trip takes too long (losing user activation)
+                    await navigator.clipboard.writeText(text);
+                } catch (error) {
+                    console.error('Copying of the text failed: ' + error);
                 
-                   textarea.style.position = "absolute";
-                   textarea.style.opacity = "0";
+                    // Fallback to document.execCommand if navigator.clipboard fails
+                    // (e.g. due to NotAllowedError or lack of Secure Context)
+                    const textArea = document.createElement("textarea");
+                    textArea.value = text;
                 
-                   document.body.appendChild(textarea);
-                   textarea.select();
-                   document.execCommand("copy");
-                   document.body.removeChild(textarea);
+                    // Ensure the textarea is part of the DOM but hidden from view
+                    textArea.style.position = "absolute";
+                    textArea.style.opacity = "0";
+                
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                
+                    try {
+                        const successful = document.execCommand('copy');
+                        if (!successful) {
+                            throw new Error('Copying of the text failed.');
+                        }
+                    } finally {
+                        document.body.removeChild(textArea);
+                    }
+                }
                 """;
     }
 
-    private static void __walkComponentsInternal(View<?> view,
-                                                 Collection<Component> currentChildrenComponents,
-                                                 Consumer<ViewChildrenVisitResult> callback,
-                                                 Set<Component> treeComponents) {
-        for (Component component : currentChildrenComponents) {
-            if (treeComponents.contains(component)) {
-                break;
-            }
-            ViewChildrenVisitResult visitResult = new ViewChildrenVisitResult();
-            visitResult.setComponent(component);
-            visitResult.setView(view);
-            visitResult.setComponentId(component.getId().orElse(null));
-            callback.accept(visitResult);
+    /**
+     * Visit all components below the specified container.
+     *
+     * @param container container to start from
+     * @param visitor   visitor instance
+     */
+    public static void traverseComponents(Component container, Consumer<Component> visitor) {
+        getOwnComponents(container)
+                .forEach(component -> {
+                    visitor.accept(component);
 
-            treeComponents.add(component);
+                    if (isContainer(component)) {
+                        traverseComponents(component, visitor);
+                    }
+                });
+    }
 
-            __walkComponentsInternal(view, UiComponentUtils.getComponents(view), callback, treeComponents);
+    /**
+     * Calls {@link Action#refreshState()} for all actions of the passed object.
+     *
+     * @param actionsHolder object containing {@link Action Actions}
+     */
+    public static void refreshActionsState(HasActions actionsHolder) {
+        actionsHolder.getActions().forEach(Action::refreshState);
+    }
+
+    /**
+     * Calls {@link Action#refreshState()} for all actions of the passed
+     * component and its children.
+     *
+     * @param component component to refresh actions
+     */
+    public static void refreshActionsState(Component component) {
+        if (component instanceof HasActions actionsHolder) {
+            refreshActionsState(actionsHolder);
+        }
+
+        if (UiComponentUtils.isContainer(component)) {
+            UiComponentUtils.traverseComponents(component, child -> {
+                if (child instanceof HasActions actionsHolder) {
+                    refreshActionsState(actionsHolder);
+                }
+            });
+        }
+    }
+
+    /**
+     * Returns the application event listeners associated with the specified component.
+     * This method identifies the type of the component and delegates the retrieval of
+     * event listeners to the appropriate utility class based on whether the component
+     * is a View or a Fragment. If the component type is unsupported, an exception is thrown.
+     *
+     * @param component the component for which to retrieve application event listeners.
+     *                  Must be an instance of {@link View} or {@link Fragment}
+     * @return a list of application event listeners associated with the specified component
+     * @throws IllegalArgumentException if the component type is unsupported
+     */
+    public static List<ApplicationListener<?>> getApplicationEventListeners(Component component) {
+        if (component instanceof View<?> view) {
+            return ViewControllerUtils.getApplicationEventListeners(view);
+        } else if (component instanceof Fragment<?> fragment) {
+            return FragmentUtils.getApplicationEventListeners(fragment);
+        } else {
+            throw new IllegalArgumentException(component.getClass().getSimpleName() +
+                    " has no API to set application event listeners");
+        }
+    }
+
+    /**
+     * Sets the application event listeners for the provided component if it supports event
+     * listener registration.
+     *
+     * @param component the component for which the application event listeners will be set.
+     *                  Must be an instance of {@link View} or {@link Fragment}
+     * @param listeners a list of application listeners to set for the given component
+     * @throws IllegalArgumentException if the component type is unsupported
+     */
+    public static void setApplicationEventListeners(Component component,
+                                                    @Nullable List<ApplicationListener<?>> listeners) {
+        if (component instanceof View<?> view) {
+            ViewControllerUtils.setApplicationEventListeners(view, listeners);
+        } else if (component instanceof Fragment<?> fragment) {
+            FragmentUtils.setApplicationEventListeners(fragment, listeners);
+        } else {
+            throw new IllegalArgumentException(component.getClass().getSimpleName() +
+                    " has no API to set application event listeners");
         }
     }
 }

@@ -20,12 +20,17 @@ import io.jmix.core.annotation.Internal;
 import io.jmix.dynattrflowui.DynAttrEmbeddingStrategies;
 import io.jmix.dynattrflowui.impl.AttributeDefaultValues;
 import io.jmix.flowui.component.UiComponentUtils;
+import io.jmix.flowui.sys.registration.FacetRegistrationBuilder;
+import io.jmix.flowui.view.View;
 import io.jmix.flowui.xml.facet.FacetProvider;
 import io.jmix.flowui.xml.layout.ComponentLoader;
-import jakarta.validation.constraints.NotNull;
 import org.dom4j.Element;
 
+/**
+ * @deprecated use {@link FacetRegistrationBuilder} instead
+ */
 @Internal
+@Deprecated(since = "3.0", forRemoval = true)
 @org.springframework.stereotype.Component("dynat_DynamicAttributeFacetProvider")
 public class DynAttrFacetProvider implements FacetProvider<DynAttrFacet> {
 
@@ -37,32 +42,27 @@ public class DynAttrFacetProvider implements FacetProvider<DynAttrFacet> {
         this.attributeDefaultValues = attributeDefaultValues;
     }
 
-
     @Override
-    @SuppressWarnings("NullableProblems")
     public Class<DynAttrFacet> getFacetClass() {
         return DynAttrFacet.class;
     }
 
     @Override
-    @SuppressWarnings("NullableProblems")
     public DynAttrFacet create() {
-        DynAttrFacetImpl dynAttrFacet = new DynAttrFacetImpl();
-        dynAttrFacet.setAttributeDefaultValues(attributeDefaultValues);
-        return dynAttrFacet;
+        return new DynAttrFacetImpl(attributeDefaultValues);
     }
 
     @Override
-    @SuppressWarnings("NullableProblems")
     public String getFacetTag() {
         return DynAttrFacet.FACET_NAME;
     }
 
     @Override
-    @SuppressWarnings("NullableProblems")
     public void loadFromXml(DynAttrFacet facet, Element element, ComponentLoader.ComponentContext context) {
-        context.addInitTask((context1, view) ->
-                UiComponentUtils.walkComponents(view,
-                        result -> embeddingStrategies.embedAttributes(result.getComponent(), view)));
+        View<?> view = context.getView();
+        context.addInitTask(__ -> {
+            UiComponentUtils.traverseComponents(view, component ->
+                    embeddingStrategies.embedAttributes(component, view));
+        });
     }
 }

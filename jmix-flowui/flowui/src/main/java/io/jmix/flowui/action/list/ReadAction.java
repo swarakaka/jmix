@@ -17,7 +17,6 @@
 package io.jmix.flowui.action.list;
 
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.icon.VaadinIcon;
 import io.jmix.core.Messages;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.security.EntityOp;
@@ -25,19 +24,19 @@ import io.jmix.flowui.DialogWindows;
 import io.jmix.flowui.UiComponentProperties;
 import io.jmix.flowui.ViewNavigators;
 import io.jmix.flowui.accesscontext.UiEntityContext;
-import io.jmix.flowui.action.impl.ActionHandlerValidator;
 import io.jmix.flowui.action.ActionType;
 import io.jmix.flowui.action.ViewOpeningAction;
+import io.jmix.flowui.action.impl.ActionHandlerValidator;
 import io.jmix.flowui.component.UiComponentUtils;
 import io.jmix.flowui.data.EntityDataUnit;
-import io.jmix.flowui.kit.component.ComponentUtils;
+import io.jmix.flowui.icon.Icons;
 import io.jmix.flowui.kit.component.KeyCombination;
+import io.jmix.flowui.kit.icon.JmixFontIcon;
 import io.jmix.flowui.sys.ActionViewInitializer;
 import io.jmix.flowui.view.*;
 import io.jmix.flowui.view.builder.DetailWindowBuilder;
 import io.jmix.flowui.view.navigation.DetailViewNavigator;
 import org.springframework.beans.factory.annotation.Autowired;
-
 import org.springframework.lang.Nullable;
 
 import java.util.function.Consumer;
@@ -51,13 +50,10 @@ public class ReadAction<E> extends SecuredListDataComponentAction<ReadAction<E>,
 
     protected ViewNavigators viewNavigators;
     protected DialogWindows dialogWindows;
-    protected ReadOnlyViewsSupport readOnlyViewsSupport;
 
     protected ActionViewInitializer viewInitializer = new ActionViewInitializer();
     protected Consumer<E> afterSaveHandler;
     protected Function<E, E> transformation;
-
-    protected boolean textInitialized = false;
 
     protected OpenMode openMode;
 
@@ -74,7 +70,6 @@ public class ReadAction<E> extends SecuredListDataComponentAction<ReadAction<E>,
         super.initAction();
 
         setConstraintEntityOp(EntityOp.READ);
-        this.icon = ComponentUtils.convertToIcon(VaadinIcon.EYE);
     }
 
     @Nullable
@@ -220,6 +215,15 @@ public class ReadAction<E> extends SecuredListDataComponentAction<ReadAction<E>,
     }
 
     @Autowired
+    protected void setIcons(Icons icons) {
+        // Check for 'null' for backward compatibility because 'icon' can be set in
+        // the 'initAction()' method which is called before injection.
+        if (this.icon == null) {
+            this.icon = icons.get(JmixFontIcon.READ_ACTION);
+        }
+    }
+
+    @Autowired
     protected void setUiComponentProperties(UiComponentProperties uiComponentProperties) {
         this.shortcutCombination = KeyCombination.create(uiComponentProperties.getGridReadShortcut());
     }
@@ -234,15 +238,9 @@ public class ReadAction<E> extends SecuredListDataComponentAction<ReadAction<E>,
         this.dialogWindows = dialogWindows;
     }
 
-    @Autowired
-    public void setReadOnlyViewsSupport(ReadOnlyViewsSupport readOnlyViewsSupport) {
-        this.readOnlyViewsSupport = readOnlyViewsSupport;
-    }
-
     @Override
     public void setText(@Nullable String text) {
         super.setText(text);
-        this.textInitialized = true;
     }
 
     @Override
@@ -313,7 +311,7 @@ public class ReadAction<E> extends SecuredListDataComponentAction<ReadAction<E>,
             ((ReadOnlyAwareView) view).setReadOnly(true);
         } else {
             throw new IllegalStateException(String.format("%s '%s' does not implement %s: %s",
-                    View.class.getSimpleName(), view.getId(),
+                    View.class.getSimpleName(), view.getId().orElse(null),
                     ReadOnlyAwareView.class.getSimpleName(), view.getClass()));
         }
 

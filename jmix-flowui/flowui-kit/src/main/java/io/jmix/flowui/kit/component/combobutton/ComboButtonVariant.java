@@ -16,7 +16,9 @@
 
 package io.jmix.flowui.kit.component.combobutton;
 
-public enum ComboButtonVariant {
+import com.vaadin.flow.component.shared.ThemeVariant;
+
+public enum ComboButtonVariant implements ThemeVariant {
 
     LUMO_SMALL("small"),
     LUMO_LARGE("large"),
@@ -25,6 +27,7 @@ public enum ComboButtonVariant {
     LUMO_PRIMARY("primary"),
     LUMO_ERROR("error"),
     LUMO_SUCCESS("success"),
+    LUMO_WARNING("warning"),
     LUMO_CONTRAST("contrast"),
     LUMO_ICON("icon"),
     MATERIAL_CONTAINED("contained"),
@@ -41,6 +44,7 @@ public enum ComboButtonVariant {
      *
      * @return variant name
      */
+    @Override
     public String getVariantName() {
         return variant;
     }

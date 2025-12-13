@@ -21,10 +21,13 @@ import io.jmix.core.annotation.JmixModule;
 import io.jmix.data.DataConfiguration;
 import io.jmix.eclipselink.EclipselinkConfiguration;
 import io.jmix.reports.libintegration.*;
+import io.jmix.reports.yarg.formatters.impl.docx.MultilineTextProcessor;
+import io.jmix.reports.yarg.formatters.impl.docx.MultilineTextProcessorImpl;
 import io.jmix.reports.yarg.loaders.QueryLoaderPreprocessor;
 import io.jmix.reports.yarg.loaders.ReportDataLoader;
 import io.jmix.reports.yarg.loaders.factory.ReportLoaderFactory;
 import io.jmix.reports.yarg.loaders.factory.impl.DefaultLoaderFactory;
+import io.jmix.reports.yarg.loaders.impl.DelegatingDataLoader;
 import io.jmix.reports.yarg.reporting.extraction.DefaultExtractionControllerFactory;
 import io.jmix.reports.yarg.reporting.extraction.DefaultPreprocessorFactory;
 import io.jmix.reports.yarg.reporting.extraction.ExtractionController;
@@ -85,7 +88,8 @@ public class ReportsConfiguration {
                                              JpqlDataLoader jpqlDataLoader,
                                              JmixJsonDataLoader jsonDataLoader,
                                              SingleEntityDataLoader singleEntityDataLoader,
-                                             MultiEntityDataLoader multiEntityDataLoader) {
+                                             MultiEntityDataLoader multiEntityDataLoader,
+                                             DelegatingDataLoader delegatingDataLoader) {
         DefaultLoaderFactory loaderFactory = new DefaultLoaderFactory();
         Map<String, ReportDataLoader> dataLoaders = new HashMap<>();
         dataLoaders.put("sql", sqlDataLoader);
@@ -94,6 +98,7 @@ public class ReportsConfiguration {
         dataLoaders.put("json", jsonDataLoader);
         dataLoaders.put("single", singleEntityDataLoader);
         dataLoaders.put("multi", multiEntityDataLoader);
+        dataLoaders.put("delegate", delegatingDataLoader);
         loaderFactory.setDataLoaders(dataLoaders);
         return loaderFactory;
     }
@@ -113,6 +118,11 @@ public class ReportsConfiguration {
     @Bean("report_GroovyDataLoader")
     public JmixGroovyDataLoader groovyDataLoader(Scripting scripting) {
         return new JmixGroovyDataLoader(scripting);
+    }
+
+    @Bean("report_DelegatingDataLoader")
+    public DelegatingDataLoader delegatingDataLoader() {
+        return new DelegatingDataLoader();
     }
 
     @Bean("report_JpqlDataLoader")
@@ -220,5 +230,10 @@ public class ReportsConfiguration {
     @Bean("report_StringConverter")
     public JmixObjectToStringConverter objectToStringConverter() {
         return new JmixObjectToStringConverter();
+    }
+
+    @Bean("report_MultilineTextProcessor")
+    public MultilineTextProcessor multilineTextProcessor() {
+        return new MultilineTextProcessorImpl();
     }
 }

@@ -26,9 +26,13 @@ import org.springframework.core.annotation.Order;
 
 import java.util.Objects;
 
+/**
+ * A settings binder implementation for the {@link GenericFilter} component, handling
+ * the persistence and application of {@link GenericFilterSettings}.
+ */
 @Order(JmixOrder.LOWEST_PRECEDENCE)
 @org.springframework.stereotype.Component("flowui_GenericFilterSettingsBinder")
-public class GenericFilterSettingsBinder implements ComponentSettingsBinder<GenericFilter, GenericFilterSettings> {
+public class GenericFilterSettingsBinder implements DataLoadingSettingsBinder<GenericFilter, GenericFilterSettings> {
 
     @Override
     public Class<? extends Component> getComponentClass() {
@@ -45,13 +49,15 @@ public class GenericFilterSettingsBinder implements ComponentSettingsBinder<Gene
         if (settings.getOpened() != null) {
             component.setOpened(settings.getOpened());
         }
+    }
 
+    @Override
+    public void applyDataLoadingSettings(GenericFilter component, GenericFilterSettings settings) {
         if (settings.getDefaultConfigurationId() != null) {
             Configuration defaultConfiguration = component.getConfiguration(settings.getDefaultConfigurationId());
 
             if (defaultConfiguration != null) {
                 component.setCurrentConfiguration(defaultConfiguration);
-                component.apply();
             }
         }
     }

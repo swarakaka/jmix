@@ -24,6 +24,7 @@ import com.vaadin.flow.component.icon.SvgIcon;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.router.Route;
 import io.jmix.flowui.component.checkbox.JmixCheckbox;
+import io.jmix.flowui.component.checkbox.Switch;
 import io.jmix.flowui.component.codeeditor.CodeEditor;
 import io.jmix.flowui.component.combobox.EntityComboBox;
 import io.jmix.flowui.component.combobox.JmixComboBox;
@@ -39,6 +40,7 @@ import io.jmix.flowui.component.textfield.JmixPasswordField;
 import io.jmix.flowui.component.textfield.TypedTextField;
 import io.jmix.flowui.component.timepicker.TypedTimePicker;
 import io.jmix.flowui.component.upload.JmixUpload;
+import io.jmix.flowui.component.usermenu.UserMenu;
 import io.jmix.flowui.component.valuepicker.EntityPicker;
 import io.jmix.flowui.component.valuepicker.JmixMultiValuePicker;
 import io.jmix.flowui.component.valuepicker.JmixValuePicker;
@@ -105,6 +107,12 @@ public class ComponentView extends StandardView {
 
     @ViewComponent
     public JmixCheckbox checkBoxWithDataId;
+
+    @ViewComponent
+    public Switch switchId;
+
+    @ViewComponent
+    public Switch switchWithDataId;
 
     @ViewComponent
     public JmixComboBox<String> comboBoxId;
@@ -174,6 +182,9 @@ public class ComponentView extends StandardView {
 
     @ViewComponent
     public EntityComboBox<?> metaClassComboBoxId;
+
+    @ViewComponent
+    public UserMenu userMenu;
 
     @ViewComponent
     public DropdownButton dropdownButtonId;

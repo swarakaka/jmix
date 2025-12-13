@@ -18,8 +18,10 @@ package io.jmix.rest.impl.config;
 
 import com.google.common.base.Strings;
 import io.jmix.core.FetchPlan;
+import io.jmix.core.JmixModules;
 import io.jmix.core.Resources;
 import io.jmix.core.common.util.Dom4j;
+import io.jmix.rest.RestProperties;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringTokenizer;
@@ -27,11 +29,10 @@ import org.dom4j.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.env.Environment;
 import org.springframework.core.io.Resource;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
-import org.springframework.lang.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -51,6 +52,9 @@ import java.util.stream.Collectors;
 @Component("rest_RestQueriesConfiguration")
 public class RestQueriesConfiguration {
 
+    /**
+     * Corresponds to {@link RestProperties#getQueriesConfig()}
+     */
     protected static final String JMIX_REST_QUERIES_CONFIG_PROP_NAME = "jmix.rest.queries-config";
 
     private final Logger log = LoggerFactory.getLogger(RestQueriesConfiguration.class);
@@ -63,7 +67,7 @@ public class RestQueriesConfiguration {
     protected Resources resources;
 
     @Autowired
-    protected Environment environment;
+    protected JmixModules jmixModules;
 
     protected List<QueryInfo> queries = new ArrayList<>();
 
@@ -134,22 +138,24 @@ public class RestQueriesConfiguration {
     }
 
     protected void init() {
-        String configName = environment.getProperty(JMIX_REST_QUERIES_CONFIG_PROP_NAME);
-        StringTokenizer tokenizer = new StringTokenizer(configName);
-        for (String location : tokenizer.getTokenArray()) {
-            Resource resource = resources.getResource(location);
-            if (resource.exists()) {
-                InputStream stream = null;
-                try {
-                    stream = resource.getInputStream();
-                    loadConfig(Dom4j.readDocument(stream).getRootElement());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    IOUtils.closeQuietly(stream);
+        List<String> moduleConfigs = jmixModules.getPropertyValues(JMIX_REST_QUERIES_CONFIG_PROP_NAME);
+        for (String moduleConfig : moduleConfigs) {
+            StringTokenizer tokenizer = new StringTokenizer(moduleConfig);
+            for (String location : tokenizer.getTokenArray()) {
+                Resource resource = resources.getResource(location);
+                if (resource.exists()) {
+                    InputStream stream = null;
+                    try {
+                        stream = resource.getInputStream();
+                        loadConfig(Dom4j.readDocument(stream).getRootElement());
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        IOUtils.closeQuietly(stream);
+                    }
+                } else {
+                    log.warn("Resource {} not found, ignore it", location);
                 }
-            } else {
-                log.warn("Resource {} not found, ignore it", location);
             }
         }
     }

@@ -17,6 +17,7 @@
 package metadata;
 
 import com.jayway.jsonpath.ReadContext;
+import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.junit.jupiter.api.Test;
 import test_support.AbstractRestControllerFT;
@@ -28,8 +29,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static test_support.RestTestUtils.parseResponse;
-import static test_support.RestTestUtils.sendGet;
+import static test_support.RestTestUtils.*;
 
 /**
  *
@@ -93,31 +93,6 @@ public class MetadataControllerFT extends AbstractRestControllerFT {
     }
 
     @Test
-    public void getView() throws Exception {
-        String url = baseUrl + "/metadata/entities/ref_Car/views/carEdit";
-        try (CloseableHttpResponse response = sendGet(url, oauthToken, null)) {
-            ReadContext ctx = parseResponse(response);
-            assertEquals("ref_Car", ctx.read("$.entity"));
-            Map<String, Object> viewProperties = (Map<String, Object>) ctx.read("$.properties[?(@.name == 'model')].fetchPlan", List.class).get(0);
-            assertEquals("_local", viewProperties.get("name"));
-
-            Map<String, Object> repairsViewProperties = (Map<String, Object>) ctx.read("$.properties[?(@.name == 'repairs')].fetchPlan", List.class).get(0);
-            assertEquals("repairEdit", repairsViewProperties.get("name"));
-            assertTrue(((Collection) repairsViewProperties.get("properties")).size() > 0);
-        }
-    }
-
-    @Test
-    public void getAllViews() throws Exception {
-        String url = baseUrl + "/metadata/entities/ref_Car/views";
-        try (CloseableHttpResponse response = sendGet(url, oauthToken, null)) {
-            ReadContext ctx = parseResponse(response);
-            assertTrue(ctx.read("$.length()", Integer.class) > 1);
-            assertEquals(1, ctx.read("$[?(@.name == 'carEdit')]", List.class).size());
-        }
-    }
-
-    @Test
     public void getFetchPlan() throws Exception {
         String url = baseUrl + "/metadata/entities/ref_Car/fetchPlans/carEdit";
         try (CloseableHttpResponse response = sendGet(url, oauthToken, null)) {
@@ -139,6 +114,16 @@ public class MetadataControllerFT extends AbstractRestControllerFT {
             ReadContext ctx = parseResponse(response);
             assertTrue(ctx.read("$.length()", Integer.class) > 1);
             assertEquals(1, ctx.read("$[?(@.name == 'carEdit')]", List.class).size());
+        }
+    }
+
+    @Test
+    public void getCapabilities() throws Exception {
+        String url = baseUrl + "/capabilities";
+        try (CloseableHttpResponse response = sendGet(url, oauthToken, null)) {
+            assertEquals(HttpStatus.SC_OK, statusCode(response));
+            ReadContext ctx = parseResponse(response);
+            assertTrue(ctx.read("$.inlineFetchPlans", Boolean.class));
         }
     }
 }

@@ -27,15 +27,17 @@ import io.jmix.flowui.accesscontext.UiEntityContext;
 import io.jmix.flowui.action.ActionType;
 import io.jmix.flowui.action.AdjustWhenViewReadOnly;
 import io.jmix.flowui.data.ContainerDataUnit;
+import io.jmix.flowui.icon.Icons;
 import io.jmix.flowui.kit.action.ActionVariant;
 import io.jmix.flowui.kit.component.ComponentUtils;
 import io.jmix.flowui.kit.component.KeyCombination;
+import io.jmix.flowui.kit.icon.JmixFontIcon;
 import io.jmix.flowui.model.Nested;
 import io.jmix.flowui.util.RemoveOperation;
 import io.jmix.flowui.util.RemoveOperation.ActionCancelledEvent;
 import io.jmix.flowui.util.RemoveOperation.AfterActionPerformedEvent;
+import io.jmix.flowui.util.RemoveOperation.BeforeActionPerformedEvent;
 import org.springframework.beans.factory.annotation.Autowired;
-
 import org.springframework.lang.Nullable;
 
 import java.util.Collection;
@@ -52,6 +54,7 @@ public class RemoveAction<E> extends SecuredListDataComponentAction<RemoveAction
     protected boolean confirmation = true;
     protected String confirmationText;
     protected String confirmationHeader;
+    protected Consumer<BeforeActionPerformedEvent<E>> beforeActionPerformedHandler;
     protected Consumer<AfterActionPerformedEvent<E>> afterActionPerformedHandler;
     protected Consumer<ActionCancelledEvent<E>> actionCancelledHandler;
     protected Consumer<Collection<E>> delegate;
@@ -71,12 +74,20 @@ public class RemoveAction<E> extends SecuredListDataComponentAction<RemoveAction
         setConstraintEntityOp(EntityOp.DELETE);
 
         variant = ActionVariant.DANGER;
-        icon = ComponentUtils.convertToIcon(VaadinIcon.TRASH);
     }
 
     @Autowired
     protected void setMessages(Messages messages) {
         this.text = messages.getMessage("actions.Remove");
+    }
+
+    @Autowired
+    protected void setIcons(Icons icons) {
+        // Check for 'null' for backward compatibility because 'icon' can be set in
+        // the 'initAction()' method which is called before injection.
+        if (this.icon == null) {
+            this.icon = icons.get(JmixFontIcon.REMOVE_ACTION);
+        }
     }
 
     @Autowired
@@ -133,6 +144,16 @@ public class RemoveAction<E> extends SecuredListDataComponentAction<RemoveAction
      */
     public void setConfirmationHeader(@Nullable String confirmationHeader) {
         this.confirmationHeader = confirmationHeader;
+    }
+
+    /**
+     * Sets the handler to be invoked before removing entities.
+     *
+     * @param beforeActionPerformedHandler handler to be set
+     */
+    public void setBeforeActionPerformedHandler(
+            @Nullable Consumer<BeforeActionPerformedEvent<E>> beforeActionPerformedHandler) {
+        this.beforeActionPerformedHandler = beforeActionPerformedHandler;
     }
 
     /**
@@ -217,6 +238,10 @@ public class RemoveAction<E> extends SecuredListDataComponentAction<RemoveAction
             builder = builder.withConfirmationTitle(confirmationHeader);
         }
 
+        if (beforeActionPerformedHandler != null) {
+            builder = builder.beforeActionPerformed(beforeActionPerformedHandler);
+        }
+
         if (afterActionPerformedHandler != null) {
             builder = builder.afterActionPerformed(afterActionPerformedHandler);
         }
@@ -244,6 +269,12 @@ public class RemoveAction<E> extends SecuredListDataComponentAction<RemoveAction
 
     public RemoveAction<E> withConfirmationHeader(@Nullable String confirmationHeader) {
         setConfirmationHeader(confirmationHeader);
+        return this;
+    }
+
+    public RemoveAction<E> withBeforeActionPerformedHandler(
+            @Nullable Consumer<BeforeActionPerformedEvent<E>> beforeActionPerformedHandler) {
+        setBeforeActionPerformedHandler(beforeActionPerformedHandler);
         return this;
     }
 

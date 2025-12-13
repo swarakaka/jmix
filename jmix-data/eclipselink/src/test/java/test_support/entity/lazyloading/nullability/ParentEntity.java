@@ -4,11 +4,12 @@ import io.jmix.core.entity.annotation.JmixGeneratedValue;
 import io.jmix.core.metamodel.annotation.Composition;
 import io.jmix.core.metamodel.annotation.InstanceName;
 import io.jmix.core.metamodel.annotation.JmixEntity;
-import io.jmix.data.impl.lazyloading.NotInstantiatedList;
-import io.jmix.data.impl.lazyloading.NotInstantiatedSet;
+import io.jmix.eclipselink.lazyloading.NotInstantiatedList;
+import io.jmix.eclipselink.lazyloading.NotInstantiatedSet;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -34,7 +35,8 @@ public class ParentEntity {
     @NotNull
     @JoinTable(name = "PARENT_ADDITIONAL_ENTITY_LINK",
             joinColumns = @JoinColumn(name = "PARENT_ENTITY_ID"),
-            inverseJoinColumns = @JoinColumn(name = "ADDITIONAL_ENTITY_ID"))
+            inverseJoinColumns = @JoinColumn(name = "ADDITIONAL_ENTITY_ID"),
+            foreignKey = @ForeignKey(name = "FK_PARENT_ADDITIONAL_ENTITY_LINK", value = ConstraintMode.NO_CONSTRAINT))
     @ManyToMany
     // field initializer that doesn't provoke eager loading of collection without correct ref fields lazy loading initialization
     private Set<AdditionalEntity> relatedAdditionalEntities = new NotInstantiatedSet<>();

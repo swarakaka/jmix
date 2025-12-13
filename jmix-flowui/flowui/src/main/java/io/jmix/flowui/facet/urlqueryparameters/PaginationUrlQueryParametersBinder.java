@@ -30,7 +30,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class PaginationUrlQueryParametersBinder extends AbstractUrlQueryParametersBinder {
+/**
+ * Handles the binding of pagination-related URL query parameters with a {@link PaginationComponent}.
+ * This allows synchronization between the component's state and the URL query parameters,
+ * facilitating state persistence and navigation.
+ * <p>
+ * The binder observes the pagination component's state changes and updates the URL query parameters accordingly.
+ * It also enables restoring the pagination state from preserved URL parameters.
+ */
+public class PaginationUrlQueryParametersBinder extends AbstractUrlQueryParametersBinder
+        implements HasInitialState {
 
     public static final String NAME = "pagination";
 
@@ -41,6 +50,8 @@ public class PaginationUrlQueryParametersBinder extends AbstractUrlQueryParamete
 
     protected String firstResultParam;
     protected String maxResultsParam;
+
+    protected InitialState initialState;
 
     protected UrlParamSerializer urlParamSerializer;
 
@@ -56,6 +67,13 @@ public class PaginationUrlQueryParametersBinder extends AbstractUrlQueryParamete
         pagination.addAfterRefreshListener(this::onAfterRefresh);
     }
 
+    @Override
+    public void saveInitialState() {
+        getPaginationLoader().ifPresent(loader ->
+                initialState = new InitialState(loader.getFirstResult(), loader.getMaxResults())
+        );
+    }
+
     protected void onAfterRefresh(PaginationComponent.AfterRefreshEvent<?> event) {
         getPaginationLoader().ifPresent(paginationLoader -> {
             QueryParameters queryParameters = QueryParameters.simple(serializeQueryParameters(paginationLoader));
@@ -64,11 +82,26 @@ public class PaginationUrlQueryParametersBinder extends AbstractUrlQueryParamete
         });
     }
 
+    /**
+     * Serializes query parameters related to pagination into an immutable map.
+     *
+     * @param paginationLoader the pagination data loader containing the pagination parameters
+     * @return an immutable map where the keys are the parameter names (e.g., "firstResult" and "maxResults")
+     * and the values are the serialized representations of the respective pagination values
+     */
     public ImmutableMap<String, String> serializeQueryParameters(PaginationDataLoader paginationLoader) {
         return ImmutableMap.of(
                 getFirstResultParam(), urlParamSerializer.serialize(paginationLoader.getFirstResult()),
                 getMaxResultsParam(), urlParamSerializer.serialize(paginationLoader.getMaxResults())
         );
+    }
+
+    @Override
+    public void applyInitialState() {
+        getPaginationLoader().ifPresent(loader -> {
+            loader.setFirstResult(initialState.firstResult);
+            loader.setMaxResults(initialState.maxResults);
+        });
     }
 
     @Override
@@ -89,18 +122,42 @@ public class PaginationUrlQueryParametersBinder extends AbstractUrlQueryParamete
         });
     }
 
+    /**
+     * Returns the parameter name used for the "first result" value in pagination.
+     * If the custom parameter name is not specified, a default parameter name is returned.
+     *
+     * @return the parameter name for the "first result" value, either a custom or default value
+     */
     public String getFirstResultParam() {
         return Strings.isNullOrEmpty(firstResultParam) ? FIRST_RESULT_PARAM : firstResultParam;
     }
 
+    /**
+     * Sets the parameter name for the "first result" value used in pagination.
+     *
+     * @param firstResultParam the custom parameter name to set, or {@code null}
+     *                         to use the default parameter name
+     */
     public void setFirstResultParam(@Nullable String firstResultParam) {
         this.firstResultParam = firstResultParam;
     }
 
+    /**
+     * Returns the parameter name used for the "max results" value in pagination.
+     * If the custom parameter name is not specified, a default parameter name is returned.
+     *
+     * @return the parameter name for the "max results" value, either a custom or default value
+     */
     public String getMaxResultsParam() {
         return Strings.isNullOrEmpty(maxResultsParam) ? MAX_RESULTS_PARAM : maxResultsParam;
     }
 
+    /**
+     * Sets the parameter name for the "max results" value used in pagination.
+     *
+     * @param maxResultsParam the custom parameter name to set, or {@code null}
+     *                        to use the default parameter name
+     */
     public void setMaxResultsParam(@Nullable String maxResultsParam) {
         this.maxResultsParam = maxResultsParam;
     }
@@ -116,5 +173,14 @@ public class PaginationUrlQueryParametersBinder extends AbstractUrlQueryParamete
             return component;
         }
         return null;
+    }
+
+    /**
+     * A POJO class for storing properties of the {@link PaginationComponent}'s initial state.
+     *
+     * @param firstResult the value of {@code firstResult} at initialization
+     * @param maxResults  the value of {@code maxResult} at initialization
+     */
+    protected record InitialState(int firstResult, int maxResults) {
     }
 }

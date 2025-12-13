@@ -25,16 +25,11 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
-import com.vaadin.flow.component.icon.Icon;
-import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.data.selection.SelectionEvent;
-import com.vaadin.flow.router.BeforeEnterEvent;
-import com.vaadin.flow.router.QueryParameters;
-import com.vaadin.flow.router.Route;
-import com.vaadin.flow.router.RouteParameters;
+import com.vaadin.flow.router.*;
 import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.theme.lumo.LumoUtility;
 import io.jmix.core.*;
@@ -48,6 +43,7 @@ import io.jmix.core.metamodel.model.Session;
 import io.jmix.data.PersistenceHints;
 import io.jmix.datatools.EntityRestore;
 import io.jmix.datatoolsflowui.DatatoolsUiProperties;
+import io.jmix.datatoolsflowui.accesscontext.UiImportExportEntityContext;
 import io.jmix.datatoolsflowui.action.ShowEntityInfoAction;
 import io.jmix.datatoolsflowui.view.entityinspector.assistant.InspectorDataGridBuilder;
 import io.jmix.datatoolsflowui.view.entityinspector.assistant.InspectorExportHelper;
@@ -71,12 +67,14 @@ import io.jmix.flowui.download.Downloader;
 import io.jmix.flowui.facet.UrlQueryParametersFacet;
 import io.jmix.flowui.facet.urlqueryparameters.GenericFilterUrlQueryParametersBinder;
 import io.jmix.flowui.facet.urlqueryparameters.PaginationUrlQueryParametersBinder;
+import io.jmix.flowui.icon.Icons;
 import io.jmix.flowui.kit.action.Action;
 import io.jmix.flowui.kit.action.ActionPerformedEvent;
 import io.jmix.flowui.kit.action.ActionVariant;
 import io.jmix.flowui.kit.component.ComponentUtils;
 import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.kit.component.dropdownbutton.DropdownButton;
+import io.jmix.flowui.kit.icon.JmixFontIcon;
 import io.jmix.flowui.model.CollectionContainer;
 import io.jmix.flowui.model.CollectionLoader;
 import io.jmix.flowui.model.DataComponents;
@@ -100,7 +98,8 @@ import static io.jmix.flowui.download.DownloadFormat.JSON;
 import static io.jmix.flowui.download.DownloadFormat.ZIP;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
-@Route(value = "datatl/entityinspector", layout = DefaultMainViewParent.class)
+@RouteAlias(value = "datatl/entityinspector", layout = DefaultMainViewParent.class)
+@Route(value = "datatl/entity-inspector", layout = DefaultMainViewParent.class)
 @ViewController("datatl_entityInspectorListView")
 @ViewDescriptor("entity-inspector-list-view.xml")
 @LookupComponent("entitiesDataGrid")
@@ -132,10 +131,10 @@ public class EntityInspectorListView extends StandardListView<Object> {
     @ViewComponent
     protected JmixButton selectButton;
 
+    @ViewComponent
+    protected MessageBundle messageBundle;
     @Autowired
     protected Messages messages;
-    @Autowired
-    protected MessageBundle messageBundle;
     @Autowired
     protected Metadata metadata;
     @Autowired
@@ -179,6 +178,8 @@ public class EntityInspectorListView extends StandardListView<Object> {
     @Autowired
     protected Downloader downloader;
     @Autowired
+    protected Icons icons;
+    @Autowired
     protected DatatoolsUiProperties datatoolsProperties;
     @Autowired(required = false)
     protected InspectorExportHelper exportHelper;
@@ -194,18 +195,40 @@ public class EntityInspectorListView extends StandardListView<Object> {
     protected CollectionLoader entitiesDl;
     protected CollectionContainer entitiesDc;
 
+    protected boolean importExportAvailableBySpecificUiPermission;
+
     protected String entityName;
-    protected boolean isDialogMode = true;
 
     @Subscribe
     public void onInit(InitEvent event) {
         showMode.setValue(ShowMode.NON_REMOVED);
         getViewData().setDataContext(dataComponents.createDataContext());
         ComponentUtils.setItemsMap(entitiesLookup, getEntitiesLookupFieldOptions());
+        applySecurityConstrains();
+    }
+
+    protected void applySecurityConstrains() {
+        UiImportExportEntityContext context = new UiImportExportEntityContext();
+        accessManager.applyRegisteredConstraints(context);
+
+        importExportAvailableBySpecificUiPermission = context.isPermitted();
     }
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
+        applyQueryParameters(event);
+
+        super.beforeEnter(event);
+    }
+
+    @Override
+    protected void processBeforeEnterInternal(BeforeEnterEvent event) {
+        applyQueryParameters(event);
+
+        super.processBeforeEnterInternal(event);
+    }
+
+    protected void applyQueryParameters(BeforeEnterEvent event) {
         initialParameters = event.getLocation().getQueryParameters();
         Map<String, List<String>> parameters = initialParameters.getParameters();
 
@@ -220,10 +243,6 @@ public class EntityInspectorListView extends StandardListView<Object> {
                     .findAny()
                     .ifPresent(this::setShowMode);
         }
-
-        isDialogMode = false;
-
-        super.beforeEnter(event);
     }
 
     //to handle the usage of entityName public setter
@@ -238,12 +257,12 @@ public class EntityInspectorListView extends StandardListView<Object> {
             entitiesDl.load();
         }
 
-        lookupBox.setVisible(!isDialogMode);
+        lookupBox.setVisible(!UiComponentUtils.isComponentAttachedToDialog(this));
     }
 
     @Subscribe
     public void onReady(ReadyEvent event) {
-        if (!isDialogMode) {
+        if (!UiComponentUtils.isComponentAttachedToDialog(this)) {
             entitiesLookup.addValueChangeListener(this::entityChangeListener);
             showMode.addValueChangeListener(this::showModeChangeListener);
         }
@@ -513,26 +532,30 @@ public class EntityInspectorListView extends StandardListView<Object> {
         refreshButton.setAction(refreshAction);
 
         DropdownButton exportDropdownButton = uiComponents.create(DropdownButton.class);
+        exportDropdownButton.setEnabled(importExportAvailableBySpecificUiPermission);
         exportDropdownButton.setText(messages.getMessage(EntityInspectorListView.class, "export"));
-        exportDropdownButton.setIcon(VaadinIcon.DOWNLOAD.create());
+        exportDropdownButton.setIconComponent(icons.get(JmixFontIcon.DOWNLOAD));
 
         ExportAction exportJsonAction = new ExportAction("exportJSON");
         exportJsonAction.setFormat(JSON);
         exportJsonAction.setDataGrid(dataGrid);
         exportJsonAction.setMetaClass(selectedMeta);
-        exportJsonAction.setIcon(VaadinIcon.FILE_CODE.create());
+        exportJsonAction.setIconComponent(icons.get(JmixFontIcon.FILE_CODE));
+        exportJsonAction.setMetadata(metadata);
         exportDropdownButton.addItem("exportJson", exportJsonAction);
 
         ExportAction exportZipAction = new ExportAction("exportZIP");
         exportZipAction.setFormat(ZIP);
         exportZipAction.setDataGrid(dataGrid);
         exportZipAction.setMetaClass(selectedMeta);
-        exportZipAction.setIcon(VaadinIcon.FILE_ZIP.create());
+        exportZipAction.setIconComponent(icons.get(JmixFontIcon.FILE_ZIP));
+        exportZipAction.setMetadata(metadata);
         exportDropdownButton.addItem("exportZip", exportZipAction);
 
         FileUploadField importUpload = uiComponents.create(FileUploadField.class);
+        importUpload.setEnabled(importExportAvailableBySpecificUiPermission);
         importUpload.setAcceptedFileTypes(".json", ".zip");
-        importUpload.setUploadIcon(VaadinIcon.UPLOAD.create());
+        importUpload.setUploadIcon(icons.get(JmixFontIcon.UPLOAD));
         importUpload.setUploadText(messages.getMessage(EntityInspectorListView.class, "import"));
 
         importUpload.addFileUploadSucceededListener(event -> {
@@ -704,7 +727,7 @@ public class EntityInspectorListView extends StandardListView<Object> {
         restoreAction.setText(messages.getMessage(EntityInspectorListView.class, "restore"));
         restoreAction.addActionPerformedListener(event -> showRestoreDialog());
         restoreAction.setTarget(dataGrid);
-        restoreAction.setIcon(new Icon("lumo", "undo"));
+        restoreAction.setIconComponent(icons.get(JmixFontIcon.UNDO));
 
         restoreButton.setAction(restoreAction);
         dataGrid.addAction(restoreAction);
@@ -719,7 +742,7 @@ public class EntityInspectorListView extends StandardListView<Object> {
         wipeOutAction.addActionPerformedListener(event -> showWipeOutDialog());
         wipeOutAction.setTarget(dataGrid);
         wipeOutAction.setVariant(ActionVariant.DANGER);
-        wipeOutAction.setIcon(VaadinIcon.ERASER.create());
+        wipeOutAction.setIconComponent(icons.get(JmixFontIcon.ERASER));
 
         wipeOutButton.setAction(wipeOutAction);
         dataGrid.addAction(wipeOutAction);
@@ -1040,6 +1063,21 @@ public class EntityInspectorListView extends StandardListView<Object> {
         }
 
         @Override
+        protected void setMetadata(Metadata metadata) {
+            this.metadata = metadata;
+        }
+
+        protected boolean isEnabledBySpecificUiPermission() {
+            return importExportAvailableBySpecificUiPermission;
+        }
+
+        @Override
+        protected void setEnabledInternal(boolean enabled) {
+            super.setEnabledInternal(enabled
+                    && isEnabledBySpecificUiPermission());
+        }
+
+        @Override
         public void execute() {
             Collection<Object> selected = dataGrid.getSelectedItems();
             if (selected.isEmpty()
@@ -1052,8 +1090,10 @@ public class EntityInspectorListView extends StandardListView<Object> {
             String tempDir = coreProperties.getTempDir();
 
             try {
+                Collection entities = reloadEntities(selected, createEntityExportPlan(selectedMeta));
+
                 if (format == ZIP) {
-                    byte[] data = entityImportExport.exportEntitiesToZIP(selected, createEntityExportPlan(selectedMeta));
+                    byte[] data = entityImportExport.exportEntitiesToZIP(entities);
                     String resourceName = metaClass.getJavaClass().getSimpleName() + ".zip";
                     ByteArrayDownloadDataProvider dataProvider =
                             new ByteArrayDownloadDataProvider(data, saveExportedByteArrayDataThresholdBytes, tempDir);
@@ -1061,7 +1101,7 @@ public class EntityInspectorListView extends StandardListView<Object> {
                     downloader.download(dataProvider, resourceName, ZIP);
 
                 } else if (format == JSON) {
-                    byte[] data = entityImportExport.exportEntitiesToJSON(selected, createEntityExportPlan(selectedMeta))
+                    byte[] data = entityImportExport.exportEntitiesToJSON(entities)
                             .getBytes(StandardCharsets.UTF_8);
                     String resourceName = metaClass.getJavaClass().getSimpleName() + ".json";
                     ByteArrayDownloadDataProvider dataProvider =
@@ -1076,6 +1116,20 @@ public class EntityInspectorListView extends StandardListView<Object> {
 
                 log.error("Entities export failed", e);
             }
+        }
+
+        protected Collection reloadEntities(Collection<Object> entities, FetchPlan fetchPlan) {
+            List ids = new ArrayList(entities.size());
+            for (Object entity : entities) {
+                ids.add(EntityValues.getId(entity));
+            }
+
+            MetaClass metaClass = metadata.getClass(fetchPlan.getEntityClass());
+            LoadContext<?> ctx = new LoadContext<>(metaClass)
+                    .setIds(ids)
+                    .setFetchPlan(fetchPlan);
+
+            return dataManager.loadList(ctx);
         }
     }
 

@@ -22,16 +22,15 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
-import io.jmix.core.Entity;
-import io.jmix.core.Messages;
-import io.jmix.core.Metadata;
-import io.jmix.core.MetadataTools;
+import com.vaadin.flow.router.RouteAlias;
+import io.jmix.core.*;
 import io.jmix.core.entity.KeyValueEntity;
 import io.jmix.core.impl.StandardSerialization;
 import io.jmix.core.metamodel.datatype.DatatypeRegistry;
 import io.jmix.core.metamodel.datatype.EnumClass;
 import io.jmix.core.metamodel.model.MetaProperty;
 import io.jmix.core.metamodel.model.MetaPropertyPath;
+import io.jmix.core.usersubstitution.CurrentUserSubstitution;
 import io.jmix.flowui.Actions;
 import io.jmix.flowui.Notifications;
 import io.jmix.flowui.UiComponents;
@@ -41,12 +40,13 @@ import io.jmix.flowui.component.tabsheet.JmixTabSheet;
 import io.jmix.flowui.component.validation.ValidationErrors;
 import io.jmix.flowui.data.grid.ContainerDataGridItems;
 import io.jmix.flowui.kit.action.ActionPerformedEvent;
-import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.model.CollectionLoader;
 import io.jmix.flowui.model.DataComponents;
 import io.jmix.flowui.model.KeyValueCollectionContainer;
 import io.jmix.flowui.view.*;
-import io.jmix.gridexportflowui.action.ExcelExportAction;
+import io.jmix.reports.ReportFilter;
+import io.jmix.reports.ReportLoadContext;
+import io.jmix.reports.ReportRepository;
 import io.jmix.reports.entity.JmixTableData;
 import io.jmix.reports.entity.Report;
 import io.jmix.reports.entity.ReportOutputType;
@@ -63,7 +63,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-@Route(value = "reports/tables", layout = DefaultMainViewParent.class)
+@RouteAlias(value = "reports/tables", layout = DefaultMainViewParent.class)
+@Route(value = "report/tables", layout = DefaultMainViewParent.class)
 @ViewController("report_ReportTableView")
 @ViewDescriptor("report-table-view.xml")
 @DialogMode(width = "50em", resizable = true)
@@ -103,31 +104,17 @@ public class ReportTableView extends StandardView {
     protected Messages messages;
     @Autowired
     protected Notifications notifications;
+    @Autowired(required = false)
+    protected ReportExcelHelper reportExcelHelper;
+    @Autowired
+    protected ReportRepository reportRepository;
+    @Autowired
+    protected CurrentUserSubstitution currentUserSubstitution;
 
     protected String templateCode;
     protected Map<String, Object> reportParameters;
     protected InputParametersFragment inputParametersFrame;
     protected ReportOutputDocument reportOutputDocument;
-
-    /**
-     * @deprecated use {@link #reportOutputDocument}
-     */
-    @Deprecated(since = "2.2.0", forRemoval = true)
-    protected Report report;
-
-    /**
-     * @deprecated use {@link #reportOutputDocument}
-     */
-    @Deprecated(since = "2.2.0", forRemoval = true)
-    protected byte[] tableData;
-
-    /**
-     * @deprecated use {@link #setReportOutputDocument(ReportOutputDocument)}
-     */
-    @Deprecated(since = "2.2.0", forRemoval = true)
-    public void setReport(Report report) {
-        this.report = report;
-    }
 
     public void setTemplateCode(@Nullable String templateCode) {
         this.templateCode = templateCode;
@@ -135,14 +122,6 @@ public class ReportTableView extends StandardView {
 
     public void setReportParameters(Map<String, Object> reportParameters) {
         this.reportParameters = reportParameters;
-    }
-
-    /**
-     * @deprecated use {@link #setReportOutputDocument(ReportOutputDocument)}
-     */
-    @Deprecated(since = "2.2.0", forRemoval = true)
-    public void setTableData(byte[] tableData) {
-        this.tableData = tableData;
     }
 
     public void setReportOutputDocument(ReportOutputDocument reportOutputDocument) {
@@ -160,22 +139,28 @@ public class ReportTableView extends StandardView {
 
         if (reportOutputDocument != null) {
             drawTables(reportOutputDocument);
-        } else if (tableData != null) {
-            JmixTableData dto = (JmixTableData) serialization.deserialize(tableData);
-            drawTables(dto);
-        }
-
-        if (report != null) {
-            reportForm.setVisible(false);
-            openReportParameters(report);
-        } else if (reportOutputDocument != null) {
             reportForm.setVisible(false);
             openReportParameters((Report) reportOutputDocument.getReport());
         }
     }
 
+    @Install(to = "reportsDl", target = Target.DATA_LOADER)
+    protected List<Report> reportsDlLoadDelegate(final LoadContext<Report> ignored) {
+        ReportFilter filter = createFilter();
+        return reportRepository.loadList(new ReportLoadContext(filter, Sort.by(ReportLoadContext.LOCALIZED_NAME_SORT_KEY)));
+    }
+
+    protected ReportFilter createFilter() {
+        ReportFilter filter = new ReportFilter();
+        filter.setUser(currentUserSubstitution.getEffectiveUser());
+        filter.setSystem(false);
+        filter.setOutputType(ReportOutputType.TABLE);
+        return filter;
+    }
 
     private void openReportParameters(Report report) {
+        report = reportRepository.reloadForRunning(report);
+
         parametersFrameHolder.removeAll();
 
         inputParametersFrame = uiComponents.create(InputParametersFragment.class);
@@ -230,42 +215,6 @@ public class ReportTableView extends StandardView {
         return null;
     }
 
-    /**
-     * @deprecated use {@link #drawTables(ReportOutputDocument)}
-     */
-    @Deprecated(since = "2.2.0", forRemoval = true)
-    protected void drawTables(JmixTableData dto) {
-        Map<String, List<KeyValueEntity>> data = dto.getData();
-        Map<String, Set<JmixTableData.ColumnInfo>> headerMap = dto.getHeaders();
-        tablesVBoxLayout.removeAll();
-
-        if (data == null || data.isEmpty()) {
-            return;
-        }
-
-        JmixTabSheet jmixTabSheet = uiComponents.create(JmixTabSheet.class);
-        jmixTabSheet.setWidthFull();
-
-        data.forEach((dataSetName, keyValueEntities) -> {
-            if (CollectionUtils.isNotEmpty(keyValueEntities)) {
-                KeyValueCollectionContainer container = createContainer(dataSetName, keyValueEntities, headerMap);
-                DataGrid<KeyValueEntity> dataGrid = createTable(dataSetName, container, headerMap);
-                HorizontalLayout buttonsPanel = createButtonsPanel(reportOutputDocument, dataGrid);
-
-                VerticalLayout verticalLayout = uiComponents.create(VerticalLayout.class);
-                verticalLayout.setPadding(false);
-                verticalLayout.add(buttonsPanel);
-                verticalLayout.add(dataGrid);
-
-                verticalLayout.expand(dataGrid);
-                jmixTabSheet.add(dataSetName, verticalLayout);
-            }
-        });
-
-        tablesVBoxLayout.add(jmixTabSheet);
-        tablesVBoxLayout.expand(jmixTabSheet);
-    }
-
     protected void drawTables(ReportOutputDocument document) {
         JmixTableData dto = (JmixTableData) serialization.deserialize(document.getContent());
 
@@ -301,16 +250,12 @@ public class ReportTableView extends StandardView {
     }
 
     private HorizontalLayout createButtonsPanel(ReportOutputDocument document, DataGrid<KeyValueEntity> dataGrid) {
-        ExcelExportAction excelExportAction = actions.create(ExcelExportAction.ID);
-        excelExportAction.withFileName(document.getReport().getName());
-        dataGrid.addAction(excelExportAction);
-
-        JmixButton excelButton = uiComponents.create(JmixButton.class);
-        excelButton.setAction(excelExportAction);
-
         HorizontalLayout buttonsPanel = uiComponents.create(HorizontalLayout.class);
         buttonsPanel.setClassName("buttons-panel");
-        buttonsPanel.add(excelButton);
+
+        if (reportExcelHelper != null) {
+            buttonsPanel.add(reportExcelHelper.createExportButton(dataGrid, document));
+        }
 
         return buttonsPanel;
     }
@@ -323,8 +268,8 @@ public class ReportTableView extends StandardView {
         columnInfos.forEach(columnInfo -> {
             Class javaClass = columnInfo.getColumnClass();
             if (Entity.class.isAssignableFrom(javaClass) ||
-                EnumClass.class.isAssignableFrom(javaClass) ||
-                datatypeRegistry.find(javaClass) != null) {
+                    EnumClass.class.isAssignableFrom(javaClass) ||
+                    datatypeRegistry.find(javaClass) != null) {
                 collectionContainer.addProperty(columnInfo.getKey(), javaClass);
             }
         });
@@ -341,7 +286,6 @@ public class ReportTableView extends StandardView {
         dataGrid.setItems(new ContainerDataGridItems<>(container));
         dataGrid.setWidth("100%");
         dataGrid.setMultiSelect(true);
-        dataGrid.setColumnReorderingAllowed(false);
         return dataGrid;
     }
 
@@ -357,7 +301,10 @@ public class ReportTableView extends StandardView {
                 if (columnInfo.getPosition() != null) {
                     table.setColumnPosition(column, columnInfo.getPosition());
                 }
-                column.setHeader(columnInfo.getCaption());
+                column.setHeader(columnInfo.getCaptionMessageKey() != null
+                        ? messages.getMessage(columnInfo.getCaptionMessageKey())
+                        : columnInfo.getCaption()
+                );
             }
         }
     }

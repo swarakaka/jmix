@@ -182,11 +182,8 @@ public class TypedTextField<V> extends TextField
 
     protected void setValueInternal(@Nullable V modelValue, String presentationValue, boolean fromClient) {
         try {
-            if (isTrimEnabled()) {
-                presentationValue = StringUtils.trimToEmpty(presentationValue);
-            }
-
             if (modelValue == null) {
+                fieldDelegate.setConversionInvalid(false);
                 modelValue = convertToModel(presentationValue);
             }
 
@@ -308,7 +305,7 @@ public class TypedTextField<V> extends TextField
         if (event.isFromClient() && !isVaadinValueChangeEnabled) {
             fieldDelegate.setConversionInvalid(false);
 
-            String presValue = event.getValue();
+            String presValue = isTrimEnabled() ? StringUtils.trimToEmpty(event.getValue()) : event.getValue();
 
             V value;
             try {
@@ -324,10 +321,6 @@ public class TypedTextField<V> extends TextField
 
     @Nullable
     protected V convertToModel(String presentationValue) throws ConversionException {
-        if (isTrimEnabled()) {
-            presentationValue = StringUtils.trimToEmpty(presentationValue);
-        }
-
         presentationValue = Strings.emptyToNull(presentationValue);
 
         if (fieldDelegate.getValueSource() instanceof EntityValueSource) {

@@ -19,14 +19,11 @@ package io.jmix.securityflowui.authentication;
 import com.google.common.base.Strings;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.router.Location;
+import com.vaadin.flow.router.LocationUtil;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.RouteConfiguration;
-import com.vaadin.flow.server.VaadinRequest;
-import com.vaadin.flow.server.VaadinService;
-import com.vaadin.flow.server.VaadinServletRequest;
-import com.vaadin.flow.server.VaadinServletResponse;
+import com.vaadin.flow.server.*;
 import com.vaadin.flow.server.auth.NavigationAccessControl;
-import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.security.VaadinDefaultRequestCache;
 import io.jmix.core.AccessManager;
 import io.jmix.core.CoreProperties;
@@ -38,14 +35,9 @@ import io.jmix.core.security.DeviceTimeZoneProvider;
 import io.jmix.core.security.SecurityContextHelper;
 import io.jmix.flowui.UiProperties;
 import io.jmix.flowui.ViewNavigators;
-import io.jmix.flowui.app.main.StandardMainView;
 import io.jmix.flowui.component.UiComponentUtils;
 import io.jmix.flowui.sys.AppCookies;
-import io.jmix.flowui.sys.ExtendedClientDetailsProvider;
-import io.jmix.flowui.view.DetailView;
-import io.jmix.flowui.view.DetailViewTypeExtractor;
-import io.jmix.flowui.view.ViewInfo;
-import io.jmix.flowui.view.ViewRegistry;
+import io.jmix.flowui.view.*;
 import io.jmix.security.model.SecurityScope;
 import io.jmix.securityflowui.accesscontext.UiLoginToUiContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,6 +48,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.event.InteractiveAuthenticationSuccessEvent;
 import org.springframework.security.core.Authentication;
@@ -67,6 +60,7 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.savedrequest.DefaultSavedRequest;
 import org.springframework.security.web.savedrequest.SavedRequest;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -90,7 +84,6 @@ import static org.springframework.security.web.authentication.rememberme.Abstrac
  *
  * @see AuthDetails
  */
-@SpringComponent("flowui_LoginViewSupport")
 public class LoginViewSupport {
 
     private static final Logger log = LoggerFactory.getLogger(LoginViewSupport.class);
@@ -102,12 +95,12 @@ public class LoginViewSupport {
     protected ViewNavigators viewNavigators;
     protected AccessManager accessManager;
     protected Messages messages;
-    protected ExtendedClientDetailsProvider clientDetailsProvider;
     protected DeviceTimeZoneProvider deviceTimeZoneProvider;
     protected RememberMeServices rememberMeServices;
     protected ApplicationEventPublisher applicationEventPublisher;
     protected VaadinDefaultRequestCache requestCache;
     protected ViewRegistry viewRegistry;
+    protected List<AuthDetailsValidator> authDetailsValidators = Collections.emptyList();
 
     protected AppCookies cookies;
 
@@ -165,15 +158,6 @@ public class LoginViewSupport {
         this.requestCache = requestCache;
     }
 
-    /**
-     * @deprecated use {@link DeviceTimeZoneProvider} instead
-     */
-    @Deprecated(since = "2.4", forRemoval = true)
-    @Autowired
-    public void setClientDetailsProvider(ExtendedClientDetailsProvider clientDetailsProvider) {
-        this.clientDetailsProvider = clientDetailsProvider;
-    }
-
     @Autowired
     public void setDeviceTimeZoneProvider(DeviceTimeZoneProvider deviceTimeZoneProvider) {
         this.deviceTimeZoneProvider = deviceTimeZoneProvider;
@@ -187,6 +171,11 @@ public class LoginViewSupport {
     @Autowired
     public void setViewRegistry(ViewRegistry viewRegistry) {
         this.viewRegistry = viewRegistry;
+    }
+
+    @Autowired(required = false)
+    public void setAuthDetailsValidators(List<AuthDetailsValidator> authDetailsValidators) {
+        this.authDetailsValidators = authDetailsValidators;
     }
 
     /**
@@ -203,6 +192,16 @@ public class LoginViewSupport {
      * @throws AuthenticationException if exception occurs while authentication process
      */
     public Authentication authenticate(AuthDetails authDetails) throws AuthenticationException {
+        for (AuthDetailsValidator validator : authDetailsValidators) {
+            AuthDetailsValidationResult validationResult = validator.validate(authDetails);
+            if (!validationResult.isValid()) {
+                throw new DisabledException(
+                        validationResult.getMessage(),
+                        validationResult.getException()
+                );
+            }
+        }
+
         Authentication authenticationToken = authenticationManager.authenticate(
                 createAuthenticationToken(
                         authDetails.getUsername(),
@@ -308,7 +307,10 @@ public class LoginViewSupport {
                 //and RouteConfiguration.getRoute(String) doesn't support full URLs
                 //like one returned from savedRequest.getRedirectUrl()
                 QueryParameters queryParameters = QueryParameters.fromString(defaultSavedRequest.getQueryString());
-                return new Location(defaultSavedRequest.getServletPath(), queryParameters);
+                if (isPathAvailable(defaultSavedRequest.getServletPath())) {
+                    return new Location(defaultSavedRequest.getServletPath(), queryParameters);
+                }
+                return null;
             } else {
                 return new Location(savedRequest.getRedirectUrl());
             }
@@ -318,12 +320,17 @@ public class LoginViewSupport {
     }
 
     protected boolean isRedirectToInitialView(Location redirectLocation) {
-        if (!Strings.isNullOrEmpty(redirectLocation.getQueryParameters().getQueryString())) {
+        if (!redirectLocation.getQueryParameters().getParameters().isEmpty()) {
             return false;
         }
+
+        String mainViewId = uiProperties.getMainViewId();
+        Class<? extends View<?>> mainViewClass = viewRegistry.getViewInfo(mainViewId)
+                .getControllerClass();
+
         RouteConfiguration routeConfiguration = RouteConfiguration.forSessionScope();
         return routeConfiguration.getRoute(redirectLocation.getPathWithQueryParameters())
-                .map(StandardMainView.class::isAssignableFrom)
+                .map(mainViewClass::isAssignableFrom)
                 .orElse(false);
     }
 
@@ -387,6 +394,18 @@ public class LoginViewSupport {
     @Nullable
     protected TimeZone getDeviceTimeZone() {
         return deviceTimeZoneProvider.getDeviceTimeZone();
+    }
+
+    protected RouteConfiguration getRouteConfiguration() {
+        return viewRegistry.getRouteConfiguration();
+    }
+
+    protected boolean isPathAvailable(@Nullable String path) {
+        String normalizedPath = LocationUtil.ensureRelativeNonNull(path);
+
+        RouteRegistry handledRegistry = getRouteConfiguration().getHandledRegistry();
+
+        return handledRegistry.getNavigationRouteTarget(normalizedPath).hasTarget();
     }
 
     protected AppCookies getCookies() {

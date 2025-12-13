@@ -25,6 +25,8 @@ import io.jmix.core.common.util.ReflectionHelper;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.metamodel.model.MetaProperty;
 import io.jmix.core.metamodel.model.MetadataObject;
+import io.jmix.rest.RestProperties;
+import io.jmix.rest.annotation.RestHttpMethod;
 import io.jmix.rest.impl.config.RestQueriesConfiguration;
 import io.jmix.rest.impl.config.RestQueriesConfiguration.QueryInfo;
 import io.jmix.rest.impl.config.RestServicesConfiguration;
@@ -89,6 +91,8 @@ public class OpenAPIGeneratorImpl implements OpenAPIGenerator {
     protected RestQueriesConfiguration queriesConfiguration;
     @Autowired
     protected RestServicesConfiguration servicesConfiguration;
+    @Autowired
+    protected RestProperties restProperties;
 
     protected OpenAPI openAPI = null;
     protected Collection<MetaClass> entityMetaClass = null;
@@ -156,7 +160,7 @@ public class OpenAPIGeneratorImpl implements OpenAPIGenerator {
             url.append(contextPath);
         }
 
-        url.append("/rest");
+        url.append(restProperties.getBasePath());
 
         openAPI.addServersItem(new Server().url(url.toString()));
     }
@@ -191,7 +195,7 @@ public class OpenAPIGeneratorImpl implements OpenAPIGenerator {
 
         List<Tag> queryTags = queriesConfiguration.getQueries()
                 .stream()
-                .map(RestQueriesConfiguration.QueryInfo::getEntityName)
+                .map(QueryInfo::getEntityName)
                 .distinct()
                 .sorted(String::compareTo)
                 .map(queryEntity -> new Tag()
@@ -202,7 +206,7 @@ public class OpenAPIGeneratorImpl implements OpenAPIGenerator {
 
         List<Tag> serviceTags = servicesConfiguration.getServiceInfos()
                 .stream()
-                .sorted(Comparator.comparing(RestServicesConfiguration.RestServiceInfo::getName))
+                .sorted(Comparator.comparing(RestServiceInfo::getName))
                 .map(serviceInfo -> new Tag()
                         .name(serviceInfo.getName())
                         .description("Middleware services execution"))
@@ -378,8 +382,6 @@ public class OpenAPIGeneratorImpl implements OpenAPIGenerator {
         Operation operation = new Operation()
                 .addTagsItem(entityName)
                 .summary("Find entities by filter conditions: " + entityName)
-                .description("Finds entities by filter conditions. The filter is defined by JSON object " +
-                        "that is passed as in URL parameter.")
                 .responses(new ApiResponses()
                         .addApiResponse("200", createEntityArrayResponse("Success. Entities that conforms filter conditions are returned in the response body.", entityName))
                         .addApiResponse("400", createErrorResponse("Bad request. For example, the condition value cannot be parsed."))
@@ -387,18 +389,29 @@ public class OpenAPIGeneratorImpl implements OpenAPIGenerator {
                         .addApiResponse("404", createErrorResponse("Not found. MetaClass for the entity with the given name not found.")));
 
         if (RequestMethod.GET == method) {
+            operation.description("Finds entities by filter conditions. The filter is defined by JSON object " +
+                        "that is passed as URL parameter.");
             operation.addParametersItem(new QueryParameter()
                     .name("filter")
                     .required(true)
                     .schema(new StringSchema().description("JSON with filter definition")));
             operation.getParameters().addAll(createEntityOptionalParams(false));
         } else {
+            Map<String, Schema> jsonParameters = new HashMap<>();
+            jsonParameters.put("filter", new StringSchema().description("JSON with filter definition"));
+            for (Parameter parameter : createEntityOptionalParams(false)) {
+                jsonParameters.put(parameter.getName(), parameter.getSchema().description(parameter.getDescription()));
+            }
+
+            operation.description("Finds entities by filter conditions. The filter is defined by JSON object " +
+                        "that is passed in body.");
             operation.requestBody(new RequestBody()
-                    .description("JSON with filter definition")
+                    .description("JSON with search parameters")
                     .content(new Content()
-                            .addMediaType(APPLICATION_JSON_VALUE, new MediaType().schema(new StringSchema())))
+                            .addMediaType(APPLICATION_JSON_VALUE,
+                                    new MediaType().schema(new JsonSchema()
+                                            .properties(jsonParameters))))
                     .required(true));
-            operation.parameters(createEntityOptionalParams(false));
         }
 
         return operation;
@@ -417,7 +430,7 @@ public class OpenAPIGeneratorImpl implements OpenAPIGenerator {
                 new QueryParameter()
                         .name("fetchPlan")
                         .description("Name of the fetchPlan which is used for loading the entity.")
-                        .schema(new BooleanSchema())
+                        .schema(new StringSchema())
         );
 
         if (singleEntityOperation) {
@@ -468,10 +481,20 @@ public class OpenAPIGeneratorImpl implements OpenAPIGenerator {
             String serviceName = serviceInfo.getName();
 
             for (RestMethodInfo methodInfo : serviceInfo.getMethods()) {
-                openAPI.path(String.format(SERVICE_PATH, serviceName, methodInfo.getName()),
-                        new PathItem()
-                                .get(createServiceMethodOp(serviceName, methodInfo, RequestMethod.GET))
-                                .post(createServiceMethodOp(serviceName, methodInfo, RequestMethod.POST)));
+                String path = String.format(SERVICE_PATH, serviceName, methodInfo.getName());
+                PathItem pathItem = openAPI.getPaths().getOrDefault(path, new PathItem());
+
+                if (methodInfo.getHttpMethod() == null) {
+                    pathItem.get(createServiceMethodOp(serviceName, methodInfo, RequestMethod.GET))
+                            .post(createServiceMethodOp(serviceName, methodInfo, RequestMethod.POST));
+                } else {
+                    switch (RestHttpMethod.valueOf(methodInfo.getHttpMethod())) {
+                        case GET -> pathItem.get(createServiceMethodOp(serviceName, methodInfo, RequestMethod.GET));
+                        case POST -> pathItem.post(createServiceMethodOp(serviceName, methodInfo, RequestMethod.POST));
+                    }
+                }
+
+                openAPI.path(path, pathItem);
             }
         }
     }
@@ -617,7 +640,7 @@ public class OpenAPIGeneratorImpl implements OpenAPIGenerator {
                 new QueryParameter()
                         .name("fetchPlan")
                         .description("Name of the fetch plan which is used for loading the entity. Specify this parameter " +
-                                "if you want to extract entities with the view other than it is defined in the REST " +
+                                "if you want to extract entities with the fetch plan other than it is defined in the REST " +
                                 "queries configuration file.")
                         .schema(new StringSchema()),
                 new QueryParameter()

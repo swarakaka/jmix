@@ -26,7 +26,9 @@ jmixFullCalendarStyle.textContent = `
        --fc-event-bg-color: var(--lumo-primary-color-50pct);
        --fc-event-border-color: var(--lumo-primary-color-50pct);
        --fc-event-text-color: var(--lumo-primary-contrast-color);
-       --fc-event-selected-overlay-color: var(--lumo-primary-color-10pct);;
+       --fc-event-selected-overlay-color: var(--lumo-primary-color-10pct);
+
+       --fc-list-event-hover-bg-color: var(--lumo-contrast-5pct);
        
        /* TimeGrid events stack "show more" background-color */
        --fc-more-link-bg-color: #a6a6a6;
@@ -93,7 +95,6 @@ jmixFullCalendarStyle.textContent = `
     
     jmix-full-calendar .jmix-day-cell-bottom-text {
         padding: var(--lumo-space-xs);
-        cursor: var(--lumo-clickable-cursor);
     }
     
     jmix-full-calendar .fc-daygrid-day.jmix-has-bottom-text {

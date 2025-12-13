@@ -22,10 +22,7 @@ import com.vaadin.flow.data.provider.SortDirection;
 import io.jmix.flowui.data.ContainerDataUnit;
 import io.jmix.flowui.data.grid.DataGridItems;
 import io.jmix.flowui.facet.settings.component.DataGridSettings;
-import io.jmix.flowui.model.CollectionContainer;
-import io.jmix.flowui.model.CollectionLoader;
-import io.jmix.flowui.model.HasLoader;
-import org.apache.commons.collections4.CollectionUtils;
+import io.jmix.flowui.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.lang.Nullable;
@@ -36,6 +33,13 @@ import java.util.Objects;
 
 import static org.apache.commons.collections4.CollectionUtils.isEmpty;
 
+/**
+ * Abstract implementation of the {@link DataLoadingSettingsBinder} interface for handling settings binding and
+ * persistence in a {@link Grid}.
+ *
+ * @param <V> the type of the grid component extending {@link Grid}
+ * @param <S> the type of the grid settings extending {@link DataGridSettings}
+ */
 public abstract class AbstractGridSettingsBinder<V extends Grid<?>, S extends DataGridSettings>
         implements DataLoadingSettingsBinder<V, S> {
 
@@ -49,47 +53,95 @@ public abstract class AbstractGridSettingsBinder<V extends Grid<?>, S extends Da
         }
 
         List<? extends Grid.Column<?>> componentColumns = getOrderedColumns(component);
+        List<Grid.Column<?>> newColumnsOrder = new ArrayList<>();
 
-        List<String> componentColumnKeys = componentColumns.stream().map(Grid.Column::getKey).toList();
-        List<String> settingsColumnKeys = settings.getColumns().stream()
-                .map(DataGridSettings.Column::getKey).filter(Objects::nonNull).toList();
-
-        // Checks only size of collections and same elements. It does not consider the order in collections.
-        // So settings won't be applied if DataGrid contains columns that are missed in settings.
-        if (CollectionUtils.isEqualCollection(componentColumnKeys, settingsColumnKeys)) {
-            List<Grid.Column<?>> newColumnsOrder = new ArrayList<>(componentColumnKeys.size());
-
-            for (DataGridSettings.Column sColumn : settings.getColumns()) {
-                Grid.Column<?> column = component.getColumnByKey(sColumn.getKey());
-                Objects.requireNonNull(column);
-
-                if (sColumn.getWidth() != null) {
-                    // Changing the column width manually works only if flexGrow is 0.
-                    // If flexGrow is >=1 then the column width is 100px. So we consider that user didn't resize
-                    //  the column if its width is 100px. And we keep the flexGrow value in this case.
-                    column.setFlexGrow(sColumn.getFlexGrow() > 0 && !"100px".equals(sColumn.getWidth())
-                            ? 0
-                            : sColumn.getFlexGrow());
-                            
-                    column.setWidth(sColumn.getWidth());
-                }
-                if (sColumn.getVisible() != null) {
-                    column.setVisible(sColumn.getVisible());
-                }
-                newColumnsOrder.add(column);
+        // apply existing settings if possible
+        for (DataGridSettings.Column sColumn : settings.getColumns()) {
+            Grid.Column<?> column = component.getColumnByKey(sColumn.getKey());
+            if (column == null) {
+                log.warn("Column with key '{}' not found in {}. The settings will not be applied.",
+                        sColumn.getKey(), Grid.class.getSimpleName());
+                continue;
             }
-            component.setColumnOrder((List) newColumnsOrder);
+
+            if (column.getParent().isEmpty()) {
+                log.warn("Column with key '{}' not attached to {}. The settings will not be applied.",
+                        sColumn.getKey(), Grid.class.getSimpleName());
+                continue;
+            }
+
+            if (sColumn.getWidth() != null) {
+                // Changing the column width manually works only if flexGrow is 0.
+                // If flexGrow is >=1 then the column width is 100px. So we consider that user didn't resize
+                //  the column if its width is 100px. And we keep the flexGrow value in this case.
+                column.setFlexGrow(sColumn.getFlexGrow() > 0 && !"100px".equals(sColumn.getWidth())
+                        ? 0
+                        : sColumn.getFlexGrow());
+
+                column.setWidth(sColumn.getWidth());
+            }
+            if (sColumn.getVisible() != null) {
+                column.setVisible(sColumn.getVisible());
+            }
+
+            newColumnsOrder.add(column);
+        }
+
+        if (newColumnsOrder.size() != componentColumns.size()) {
+            List<? extends Grid.Column<?>> notProcessedColumns = componentColumns.stream()
+                    .filter(column -> !newColumnsOrder.contains(column))
+                    .toList();
+
+            for (Grid.Column<?> notProcessedColumn : notProcessedColumns) {
+                int index = findFirstLeftNeighborIndex(componentColumns, newColumnsOrder, notProcessedColumn);
+
+                // add right after left neighbor, otherwise add to zero-index
+                newColumnsOrder.add(index + 1, notProcessedColumn);
+            }
+        }
+
+        component.setColumnOrder((List) newColumnsOrder);
+
+        // Collection property container sorting cannot be applied in '#applyDataLoadingSettings()',
+        // because the items are not loaded at that moment and Grid will attempt to sort an empty container.
+        // The next sorting operation won't be applied, as the Grid does not re-sort if the sorting is the same.
+        // However, it is safe to sort collection property container here, because it is in-memory items
+        // collection.
+        if (isCollectionPropertyContainer(getGridItems(component))) {
+            applySorting(component, settings);
         }
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    protected int findFirstLeftNeighborIndex(List<? extends Grid.Column<?>> componentColumns,
+                                             List<Grid.Column<?>> newColumnsOrder,
+                                             Grid.Column<?> notIncludedColumn) {
+        int startIndex = componentColumns.indexOf(notIncludedColumn);
+        while (startIndex > 0) {
+            Grid.Column<?> neighborCandidate = componentColumns.get(--startIndex);
+
+            if (newColumnsOrder.contains(neighborCandidate)) {
+                return newColumnsOrder.indexOf(neighborCandidate);
+            }
+        }
+
+        // left neighbor is not found, should be 0 index
+        return -1;
+    }
+
     @Override
     public void applyDataLoadingSettings(V component, S settings) {
-        if (!isDataLoadingSettingsEnabled(component)
-                || isEmpty(settings.getSortOrder())) {
+        if (!isDataLoadingSettingsEnabled(component)) {
             return;
         }
 
+        applySorting(component, settings);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    protected void applySorting(V component, S settings) {
+        if (isEmpty(settings.getSortOrder())) {
+            return;
+        }
         List sortOrder = settings.getSortOrder().stream()
                 .filter(o -> o.getKey() != null)
                 .map(sSortOrder -> new GridSortOrder<>(
@@ -166,9 +218,16 @@ public abstract class AbstractGridSettingsBinder<V extends Grid<?>, S extends Da
         if (items instanceof ContainerDataUnit) {
             CollectionContainer<?> container = ((ContainerDataUnit<?>) items).getContainer();
             return container instanceof HasLoader
-                    && ((HasLoader) container).getLoader() instanceof CollectionLoader;
+                    && ((HasLoader) container).getLoader() instanceof BaseCollectionLoader;
         }
         return false;
+    }
+
+    protected boolean isCollectionPropertyContainer(@Nullable DataGridItems<?> items) {
+        if (!(items instanceof ContainerDataUnit<?>)) {
+            return false;
+        }
+        return ((ContainerDataUnit<?>) items).getContainer() instanceof CollectionPropertyContainer<?>;
     }
 
     @Nullable

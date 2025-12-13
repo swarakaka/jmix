@@ -21,6 +21,7 @@ import com.vaadin.flow.component.UI;
 import io.jmix.core.annotation.Internal;
 import io.jmix.flowui.UiEventPublisher;
 import io.jmix.flowui.sys.autowire.EventListenerDependencyInjector;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
@@ -45,6 +46,8 @@ import java.util.stream.Collectors;
 @Internal
 public class UiEventsManager {
 
+    private static final Logger log = LoggerFactory.getLogger(UiEventsManager.class);
+
     protected Set<ComponentListeners> listeners = ConcurrentHashMap.newKeySet();
 
     /**
@@ -54,6 +57,8 @@ public class UiEventsManager {
      * @param listener  application listener
      */
     public void addApplicationListener(Component component, ApplicationListener<?> listener) {
+        log.debug("Adding application listeners for '{}'", component);
+
         ComponentListeners componentListeners = listeners.stream()
                 .filter(item -> item.isSameComponent(component))
                 .findFirst()
@@ -78,6 +83,8 @@ public class UiEventsManager {
         listeners.stream()
                 .filter(componentListeners -> componentListeners.contains(listener))
                 .findFirst().ifPresent(componentListeners -> {
+                    log.debug("Removing application listeners for '{}'", componentListeners.getComponent());
+
                     componentListeners.removeListener(listener);
 
                     if (componentListeners.isEmpty()) {
@@ -87,11 +94,37 @@ public class UiEventsManager {
     }
 
     /**
+     * Disables all application listeners for the provided component. These listeners can be enabled later.
+     *
+     * @param component the component that contains listener definitions to disable
+     */
+    public void disableApplicationListenersFor(Component component) {
+        listeners.stream()
+                .filter(cs -> cs.getComponent().equals(component))
+                .findFirst()
+                .ifPresent(cs -> cs.setEnabled(false));
+    }
+
+    /**
+     * Enables all application listeners for the provided component.
+     *
+     * @param component the component that contains listener definitions to enable
+     */
+    public void enableApplicationListenersFor(Component component) {
+        listeners.stream()
+                .filter(cs -> cs.getComponent().equals(component))
+                .findFirst()
+                .ifPresent(cs -> cs.setEnabled(true));
+    }
+
+    /**
      * Removes all application listeners that have definition in the given component.
      *
      * @param component component
      */
     public void removeApplicationListeners(Component component) {
+        log.debug("Removing application listeners for '{}'", component);
+
         listeners.stream().filter(componentListeners -> componentListeners.isSameComponent(component))
                 .findFirst()
                 .ifPresent(componentListeners -> listeners.remove(componentListeners));
@@ -129,8 +162,7 @@ public class UiEventsManager {
             String msg = ex.getMessage();
             if (msg == null || msg.startsWith(event.getClass().getName())) {
                 // Possibly a lambda-defined listener which we could not resolve the generic event type for
-                LoggerFactory.getLogger(UiEventsManager.class)
-                        .debug("Non-matching event type for listener: {}", listener, ex);
+                log.debug("Non-matching event type for listener: {}", listener, ex);
             } else {
                 throw ex;
             }
@@ -156,6 +188,10 @@ public class UiEventsManager {
         List<ApplicationListener<?>> filtered = new ArrayList<>();
 
         for (ComponentListeners componentListeners : listeners) {
+            if (!componentListeners.isEnabled()) {
+                continue;
+            }
+
             UI ui = componentListeners.getComponent().getUI().orElse(null);
             if (uis.isEmpty()
                     || (ui != null && uis.contains(ui))) {
@@ -183,6 +219,7 @@ public class UiEventsManager {
 
     protected static class ComponentListeners {
 
+        protected boolean enabled = true;
         protected Component component;
         protected List<ApplicationListener<?>> listeners;
 
@@ -226,7 +263,11 @@ public class UiEventsManager {
         }
 
         public boolean isEnabled() {
-            return component.getUI().isPresent();
+            return enabled && component.getUI().isPresent();
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
         }
     }
 }

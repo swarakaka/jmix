@@ -17,20 +17,25 @@
 package lazy_loading
 
 import io.jmix.core.DataManager
+import io.jmix.core.EntityStates
 import io.jmix.core.FetchPlan
 import io.jmix.core.Id
 import io.jmix.core.Metadata
 import org.springframework.beans.factory.annotation.Autowired
+import spock.lang.IgnoreIf
 import test_support.DataSpec
 import test_support.entity.embedded_pk.Branch
 import test_support.entity.embedded_pk.Root
 
+@IgnoreIf({Boolean.valueOf(System.getenv("JMIX_ECLIPSELINK_DISABLELAZYLOADING"))})
 class EmbeddedIdReferenceTest extends DataSpec {
 
     @Autowired
     DataManager dataManager
     @Autowired
     Metadata metadata
+    @Autowired
+    EntityStates entityStates
 
 
     void "test o2m loading"() {
@@ -71,6 +76,8 @@ class EmbeddedIdReferenceTest extends DataSpec {
         then:
         fullyLoaded.branches[0].root.name == "root1"
         fullyLoaded.branches[1].root.name == "root1"
+
+        entityStates.isLoaded(fullyLoaded.branches[0], "root")
 
         when:
         var partiallyLoaded = dataManager.load(Id.of(root)).one()
@@ -145,7 +152,10 @@ class EmbeddedIdReferenceTest extends DataSpec {
 
         then:
         partiallyLoadedO2oBranch.o2oRoot.o2oBranch.name == "o2oBranch1"
+        entityStates.isLoaded(partiallyLoadedO2oBranch.o2oRoot, 'o2oBranch')
+
         partiallyLoadedO2oBranch.root.branches[0].name == "o2oBranch1"
+        entityStates.isLoaded(partiallyLoadedO2oBranch.root.branches[0], 'root')
 
 
         cleanup:

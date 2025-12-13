@@ -23,8 +23,12 @@ public class PropagationExceptionHandler implements UiExceptionHandler {
     @Override
     public boolean handle(Throwable exception) {
         // Exception can be thrown while navigation is performing. However,
-        // this exception is not propagated and test considered as passed.
+        // this exception is not propagated and the test is considered as passed.
         // So we should propagate the exception to fail the test.
-        throw (RuntimeException) exception;
+        if (exception instanceof RuntimeException runtimeException) {
+            throw runtimeException;
+        }
+
+        throw new RuntimeException(exception);
     }
 }

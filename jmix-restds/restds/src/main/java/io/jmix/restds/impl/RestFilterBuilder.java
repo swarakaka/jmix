@@ -22,6 +22,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.jmix.core.*;
+import io.jmix.core.metamodel.datatype.Datatype;
+import io.jmix.core.metamodel.datatype.DatatypeRegistry;
+import io.jmix.core.metamodel.datatype.EnumClass;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.querycondition.Condition;
 import io.jmix.core.querycondition.LogicalCondition;
@@ -32,6 +35,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +55,8 @@ public class RestFilterBuilder {
     private FetchPlans fetchPlans;
     @Autowired
     private EntitySerialization entitySerialization;
+    @Autowired
+    private DatatypeRegistry datatypeRegistry;
 
     @Nullable
     public String build(MetaClass metaClass, List<?> ids) {
@@ -131,16 +137,20 @@ public class RestFilterBuilder {
                 Object parameterValue = parameters.get(parameterName);
                 if (parameterValue instanceof Entity entity) {
                     // set the parameter value as JsonNode
-                    FetchPlan fetchPlan = fetchPlans.builder(entity.getClass()).addFetchPlan(FetchPlan.INSTANCE_NAME).build();
-                    String jsonString = entitySerialization.toJson(entity, fetchPlan);
-                    ((ObjectNode) node).set("value", objectMapper.readTree(jsonString));
+                    ((ObjectNode) node).set("value", entityToJsonObject(entity));
+                } else if (parameterValue instanceof Collection<?> collection) {
+                    ArrayNode arrayNode = objectMapper.createArrayNode();
+                    for (Object object : collection) {
+                        if (object instanceof Entity entity) {
+                            arrayNode.add(entityToJsonObject(entity));
+                        } else {
+                            arrayNode.add(objectToJsonString(object));
+                        }
+                        ((ObjectNode) node).set("value", arrayNode);
+                    }
                 } else {
                     // put the parameter value as a string without quotes
-                    String stringValue = objectMapper.writeValueAsString(parameterValue);
-                    if (stringValue.startsWith("\"") && stringValue.endsWith("\"")) {
-                        stringValue = stringValue.substring(1, stringValue.length() - 1);
-                    }
-                    ((ObjectNode) node).put("value", stringValue);
+                    ((ObjectNode) node).put("value", objectToJsonString(parameterValue));
                 }
                 // remove the parameter node
                 ((ObjectNode) node).remove(PARAMETER_FIELD);
@@ -161,7 +171,7 @@ public class RestFilterBuilder {
         return build(null, condition, null);
     }
 
-    private void buildJsonNode(ObjectNode node, Condition condition) {
+    private void buildJsonNode(ObjectNode node, Condition condition) throws JsonProcessingException {
         if (condition instanceof LogicalCondition logicalCondition) {
             node.put("group", logicalCondition.getType().name().toLowerCase());
             JsonNode arrayNode = node.get("conditions");
@@ -179,13 +189,53 @@ public class RestFilterBuilder {
             if (restOperator != null) {
                 node.put("property", propertyCondition.getProperty());
                 node.put("operator", restOperator);
-                node.put("value", String.valueOf(propertyCondition.getParameterValue()));
+                setParameterValueToNode(node, propertyCondition.getParameterValue());
             } else {
                 log.warn("Unsupported condition operation: {}", propertyCondition.getOperation());
             }
         } else {
             log.warn("Unsupported Condition type: {}", condition.getClass());
         }
+    }
+
+    private void setParameterValueToNode(JsonNode node, @Nullable Object parameterValue) throws JsonProcessingException {
+        if (parameterValue instanceof Entity entity) {
+            // set the parameter value as JsonNode
+            ((ObjectNode) node).set("value", entityToJsonObject(entity));
+        } else if (parameterValue instanceof Collection<?> collection) {
+            ArrayNode arrayNode = objectMapper.createArrayNode();
+            for (Object object : collection) {
+                if (object instanceof Entity entity) {
+                    arrayNode.add(entityToJsonObject(entity));
+                } else {
+                    arrayNode.add(objectToJsonString(object));
+                }
+                ((ObjectNode) node).set("value", arrayNode);
+            }
+        } else {
+            // put the parameter value as a string without quotes
+            ((ObjectNode) node).put("value", objectToJsonString(parameterValue));
+        }
+    }
+
+    private JsonNode entityToJsonObject(Entity entity) throws JsonProcessingException {
+        FetchPlan fetchPlan = fetchPlans.builder(entity.getClass()).addFetchPlan(FetchPlan.INSTANCE_NAME).build();
+        String jsonString = entitySerialization.toJson(entity, fetchPlan);
+        return objectMapper.readTree(jsonString);
+    }
+
+    private String objectToJsonString(@Nullable Object object) throws JsonProcessingException {
+        if (object == null) {
+            return "null";
+        }
+        Datatype<?> datatype = datatypeRegistry.find(object.getClass());
+        if (datatype != null) {
+            return datatype.format(object);
+        }
+        if (object instanceof EnumClass<?> enumValue) {
+            return enumValue.toString();
+        }
+        return objectMapper.writeValueAsString(object);
     }
 
     @Nullable

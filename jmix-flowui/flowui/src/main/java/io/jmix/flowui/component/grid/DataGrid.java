@@ -39,8 +39,8 @@ import io.jmix.flowui.component.UiComponentUtils;
 import io.jmix.flowui.component.delegate.AbstractGridDelegate;
 import io.jmix.flowui.component.delegate.GridDelegate;
 import io.jmix.flowui.component.grid.editor.DataGridEditor;
-import io.jmix.flowui.component.grid.editor.DataGridEditorImpl;
 import io.jmix.flowui.data.grid.DataGridItems;
+import io.jmix.flowui.fragment.FragmentUtils;
 import io.jmix.flowui.kit.component.KeyCombination;
 import io.jmix.flowui.kit.component.grid.GridActionsSupport;
 import io.jmix.flowui.kit.component.grid.JmixGrid;
@@ -50,10 +50,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.lang.Nullable;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -80,6 +77,8 @@ public class DataGrid<E> extends JmixGrid<E> implements ListDataComponent<E>, Mu
     protected void initComponent() {
         gridDelegate = createDelegate();
         gridDelegate.setAfterColumnSecurityApplyHandler(this::onAfterApplyColumnSecurity);
+        gridDelegate.setEmptyStateTextDelegate(super::setEmptyStateText);
+        gridDelegate.setEmptyStateComponentDelegate(super::setEmptyStateComponent);
     }
 
     @SuppressWarnings("unchecked")
@@ -95,6 +94,22 @@ public class DataGrid<E> extends JmixGrid<E> implements ListDataComponent<E>, Mu
         }
 
         return super.setItems(dataProvider);
+    }
+
+    @Override
+    public void scrollToItem(E item) {
+        if (getDataProvider() instanceof DataGridItems) {
+            Preconditions.checkNotNullArgument(item, "Item to scroll to cannot be null.");
+
+            Integer itemIndex = getGenericDataView().getItemIndex(item)
+                    .orElseThrow(() -> new NoSuchElementException(
+                            "Item to scroll to cannot be found: " + item));
+            scrollToIndex(itemIndex);
+
+            return;
+        }
+
+        super.scrollToItem(item);
     }
 
     @Nullable
@@ -204,6 +219,7 @@ public class DataGrid<E> extends JmixGrid<E> implements ListDataComponent<E>, Mu
         return gridDelegate.getColumnMetaPropertyPath(column);
     }
 
+    @Nullable
     @Override
     public DataGridColumn<E> getColumnByMetaPropertyPath(MetaPropertyPath metaPropertyPath) {
         return gridDelegate.getColumnByMetaPropertyPath(metaPropertyPath);
@@ -212,7 +228,7 @@ public class DataGrid<E> extends JmixGrid<E> implements ListDataComponent<E>, Mu
     /**
      * Adds column by the meta property path.
      *
-     * @param metaPropertyPath meta property path to add column
+     * @param metaPropertyPath meta property path to add a column
      * @return added column
      */
     @Override
@@ -224,7 +240,7 @@ public class DataGrid<E> extends JmixGrid<E> implements ListDataComponent<E>, Mu
     }
 
     /**
-     * Adds column by the meta property path and specified key. The key is used to identify the column, see
+     * Adds a column by the meta property path and specified key. The key is used to identify the column, see
      * {@link #getColumnByKey(String)}.
      *
      * @param key              column key
@@ -374,7 +390,7 @@ public class DataGrid<E> extends JmixGrid<E> implements ListDataComponent<E>, Mu
     @Override
     protected DataGridEditor<E> createEditor() {
         editorCreated = true;
-        return new DataGridEditorImpl<>(this, applicationContext);
+        return gridDelegate.createEditor();
     }
 
     @SuppressWarnings({"unchecked"})
@@ -385,8 +401,11 @@ public class DataGrid<E> extends JmixGrid<E> implements ListDataComponent<E>, Mu
 
     protected void onAfterApplyColumnSecurity(AbstractGridDelegate.ColumnSecurityContext<E> context) {
         if (!context.isPropertyEnabled()) {
-            // Remove column from component while GridDelegate stores this column
+            // Remove a column from a component while GridDelegate stores this column
             super.removeColumn(context.getColumn());
+
+            // Remove a column from an aggregation mechanism
+            gridDelegate.removeAggregationInfo(context.getColumn());
         }
     }
 
@@ -406,18 +425,57 @@ public class DataGrid<E> extends JmixGrid<E> implements ListDataComponent<E>, Mu
 
     @Nullable
     @Override
+    public String getEmptyStateText() {
+        return gridDelegate.getEmptyStateText();
+    }
+
+    @Override
+    public void setEmptyStateText(String emptyStateText) {
+        gridDelegate.setEmptyStateText(emptyStateText);
+    }
+
+    @Nullable
+    @Override
+    public Component getEmptyStateComponent() {
+        return gridDelegate.getEmptyStateComponent();
+    }
+
+    @Override
+    public void setEmptyStateComponent(Component emptyStateComponent) {
+        gridDelegate.setEmptyStateComponent(emptyStateComponent);
+    }
+
+    @Nullable
+    @Override
     public Object getSubPart(String name) {
         Object column = super.getSubPart(name);
         if (column != null) {
             return column;
         }
+
+        BiFunction<Component, String, Boolean> sameIdComparator = UiComponentUtils.findFragment(this) == null
+                ? UiComponentUtils::sameId
+                : FragmentUtils::sameId;
+
+        if (getEmptyStateComponent() != null) {
+            if (sameIdComparator.apply(getEmptyStateComponent(), name)) {
+                return getEmptyStateComponent();
+            }
+
+            Optional<Component> emptyStateComponent = UiComponentUtils.findComponent(getEmptyStateComponent(), name);
+            if (emptyStateComponent.isPresent()) {
+                return emptyStateComponent.get();
+            }
+        }
+
         if (contextMenu != null) {
-            if (UiComponentUtils.sameId(contextMenu, name)) {
+            if (sameIdComparator.apply(contextMenu, name)) {
                 return contextMenu;
             } else {
                 return contextMenu.getSubPart(name);
             }
         }
+
         return null;
     }
 }

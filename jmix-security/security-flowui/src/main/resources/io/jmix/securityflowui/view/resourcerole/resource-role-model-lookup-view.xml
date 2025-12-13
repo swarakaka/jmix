@@ -20,9 +20,12 @@
       focusComponent="roleModelsTable">
     <data readOnly="true">
         <collection id="roleModelsDc"
-                    class="io.jmix.securityflowui.model.ResourceRoleModel">
+                    class="io.jmix.security.model.ResourceRoleModel">
         </collection>
     </data>
+    <facets>
+        <settings auto="true"/>
+    </facets>
     <actions>
         <action id="selectAction" type="lookup_select"/>
         <action id="discardAction" type="lookup_discard"/>

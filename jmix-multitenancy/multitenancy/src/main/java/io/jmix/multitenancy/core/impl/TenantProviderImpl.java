@@ -19,12 +19,14 @@ package io.jmix.multitenancy.core.impl;
 import io.jmix.core.annotation.TenantId;
 import io.jmix.core.common.util.ReflectionHelper;
 import io.jmix.core.security.CurrentAuthentication;
+import io.jmix.core.usersubstitution.CurrentUserSubstitution;
 import io.jmix.multitenancy.core.TenantProvider;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Field;
+import java.util.WeakHashMap;
 
 /**
  * Implementation of {@link TenantProvider} based on {@link CurrentAuthentication}.
@@ -32,16 +34,21 @@ import java.lang.reflect.Field;
 @Component("mten_TenantProvider")
 public class TenantProviderImpl implements TenantProvider {
 
-    private final CurrentAuthentication currentAuthentication;
+    protected WeakHashMap<Class<?>, String> fieldsCache = new WeakHashMap<>();
 
-    public TenantProviderImpl(CurrentAuthentication currentAuthentication) {
+    private final CurrentAuthentication currentAuthentication;
+    private final CurrentUserSubstitution currentUserSubstitution;
+
+    public TenantProviderImpl(CurrentAuthentication currentAuthentication,
+                              CurrentUserSubstitution currentUserSubstitution) {
         this.currentAuthentication = currentAuthentication;
+        this.currentUserSubstitution = currentUserSubstitution;
     }
 
     /**
-     * Returns the tenant ID of a logged in user.
+     * Returns the tenant ID of a logged-in user.
      *
-     * @return tenant ID of a logged in user, 'no_tenant' if the user doesn't have a tenant ID
+     * @return tenant ID of a logged-in user, 'no_tenant' if the user doesn't have a tenant ID
      */
     @Override
     public String getCurrentUserTenantId() {
@@ -53,7 +60,13 @@ public class TenantProviderImpl implements TenantProvider {
             return TenantProvider.NO_TENANT;
         }
 
-        UserDetails userDetails = currentAuthentication.getUser();
+        UserDetails userDetails = currentUserSubstitution.getEffectiveUser();
+
+        return getTenantIdForUser(userDetails);
+    }
+
+    @Override
+    public String getTenantIdForUser(UserDetails userDetails) {
         String tenantIdFieldName = getTenantIdFieldName(userDetails.getClass());
 
         if (tenantIdFieldName == null) {
@@ -67,11 +80,18 @@ public class TenantProviderImpl implements TenantProvider {
 
     @Nullable
     protected String getTenantIdFieldName(Class<?> clazz) {
-        Field[] declaredFields = clazz.getDeclaredFields();
+        String tenantField = fieldsCache.get(clazz);
+        if (tenantField != null) {
+            return tenantField;
+        }
 
-        for (Field field : declaredFields) {
-            if (field.isAnnotationPresent(TenantId.class)) {
-                return field.getName();
+        for (Class<?> type = clazz; type != null; type = type.getSuperclass()) {
+            Field[] declaredFields = type.getDeclaredFields();
+            for (Field field : declaredFields) {
+                if (field.isAnnotationPresent(TenantId.class)) {
+                    fieldsCache.put(clazz, field.getName());
+                    return field.getName();
+                }
             }
         }
 

@@ -16,16 +16,16 @@
 
 package io.jmix.restds.impl;
 
+import com.google.common.base.Strings;
 import io.jmix.core.*;
 import io.jmix.core.datastore.AbstractDataStore;
-import io.jmix.core.entity.EntityPropertyChangeEvent;
-import io.jmix.core.entity.EntityPropertyChangeListener;
-import io.jmix.core.entity.EntitySystemAccess;
-import io.jmix.core.entity.EntityValues;
+import io.jmix.core.entity.*;
 import io.jmix.core.metamodel.model.MetaClass;
 import io.jmix.core.metamodel.model.MetaProperty;
 import io.jmix.restds.annotation.RestDataStoreEntity;
-import org.apache.commons.lang3.StringUtils;
+import io.jmix.restds.exception.InvalidFetchPlanException;
+import io.jmix.restds.filestorage.RestFileStorage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Scope;
@@ -33,34 +33,44 @@ import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * DataStore implementation working with entities through generic REST.
+ */
 @SuppressWarnings("UnnecessaryLocalVariable")
 @Component("restds_RestDataStore")
 @Scope(BeanDefinition.SCOPE_PROTOTYPE)
 public class RestDataStore extends AbstractDataStore {
 
-    private final ApplicationContext applicationContext;
-    private final RestSerialization restSerialization;
-    private final RestFilterBuilder restFilterBuilder;
-    private final RestEntityEventManager entityEventManager;
-    private final RestSaveContextProcessor saveContextProcessor;
-    private final FetchPlanRepository fetchPlanRepository;
+    @Autowired
+    private ApplicationContext applicationContext;
+    @Autowired
+    private RestSerialization restSerialization;
+    @Autowired
+    private RestFilterBuilder restFilterBuilder;
+    @Autowired
+    private RestEntityEventManager entityEventManager;
+    @Autowired
+    private RestSaveContextProcessor saveContextProcessor;
+    @Autowired
+    private FetchPlanRepository fetchPlanRepository;
+    @Autowired
+    private RestDsLoadedPropertiesInfoFactory loadedPropertiesInfoFactory;
+    @Autowired
+    private FetchPlanSerialization fetchPlanSerialization;
+    @Autowired
+    private FileStorageLocator fileStorageLocator;
 
-    protected String storeName;
+    private String storeName;
 
     private RestInvoker restInvoker;
 
-    public RestDataStore(ApplicationContext applicationContext, RestSerialization restSerialization, RestFilterBuilder restFilterBuilder,
-                         RestEntityEventManager entityEventManager, RestSaveContextProcessor saveContextProcessor, FetchPlanRepository fetchPlanRepository) {
-        this.applicationContext = applicationContext;
-        this.restSerialization = restSerialization;
-        this.restFilterBuilder = restFilterBuilder;
-        this.entityEventManager = entityEventManager;
-        this.saveContextProcessor = saveContextProcessor;
-        this.fetchPlanRepository = fetchPlanRepository;
-    }
+    private RestCapabilities restCapabilities;
 
     public RestInvoker getRestInvoker() {
         return restInvoker;
@@ -70,19 +80,29 @@ public class RestDataStore extends AbstractDataStore {
     @Nullable
     protected Object loadOne(LoadContext<?> context) {
         Object id = context.getId();
-        if (id == null) {
-            throw new IllegalArgumentException("Id is null");
-        }
         Class<Object> entityClass = context.getEntityMetaClass().getJavaClass();
         String entityName = getEntityName(context.getEntityMetaClass());
-        String fetchPlan = getFetchPlan(context);
-
-        RestInvoker.LoadParams params = new RestInvoker.LoadParams(entityName, id, fetchPlan);
-        String json = restInvoker.load(params);
-        Object entity = restSerialization.fromJson(json, entityClass);
-
+        String fetchPlan = getFetchPlanNameOrJson(context.getFetchPlan());
+        Object entity = null;
+        if (id != null) {
+            RestInvoker.LoadParams params = new RestInvoker.LoadParams(entityName, id, fetchPlan);
+            String json = restInvoker.load(params);
+            entity = restSerialization.fromJson(json, entityClass);
+        } else {
+            RestInvoker.LoadListParams params = new RestInvoker.LoadListParams(entityName,
+                    1,
+                    getFirstResult(context.getQuery()),
+                    createRestSort(context.getQuery()),
+                    createRestFilter(context),
+                    fetchPlan);
+            String json = restInvoker.loadList(params);
+            List<Object> entities = restSerialization.fromJsonCollection(json, entityClass);
+            if (!entities.isEmpty()) {
+                entity = entities.get(0);
+            }
+        }
         if (entity != null) {
-            updateEntityState(entity, fetchPlan);
+            updateEntityState(entity, context.getFetchPlan());
             entityEventManager.publishEntityLoadingEvent(entity);
         }
         return entity;
@@ -92,7 +112,7 @@ public class RestDataStore extends AbstractDataStore {
     protected List<Object> loadAll(LoadContext<?> context) {
         Class<Object> entityClass = context.getEntityMetaClass().getJavaClass();
         String entityName = getEntityName(context.getEntityMetaClass());
-        String fetchPlan = getFetchPlan(context);
+        String fetchPlan = getFetchPlanNameOrJson(context.getFetchPlan());
 
         RestInvoker.LoadListParams params = new RestInvoker.LoadListParams(entityName,
                 getMaxResults(context.getQuery()),
@@ -104,19 +124,10 @@ public class RestDataStore extends AbstractDataStore {
         List<Object> entities = restSerialization.fromJsonCollection(json, entityClass);
 
         for (Object entity : entities) {
-            updateEntityState(entity, fetchPlan);
+            updateEntityState(entity, context.getFetchPlan());
             entityEventManager.publishEntityLoadingEvent(entity);
         }
         return entities;
-    }
-
-    private void updateEntityState(Object entity, @Nullable String fetchPlanName) {
-        MetaClass metaClass = metadata.getClass(entity);
-        FetchPlan fetchPlan = fetchPlanName == null ?
-            fetchPlanRepository.getFetchPlan(metaClass, FetchPlan.BASE) :
-            fetchPlanRepository.getFetchPlan(metaClass, fetchPlanName);
-
-        updateEntityStateRecursive(entity, fetchPlan, new HashSet<>());
     }
 
     private void updateEntityState(Object entity, @Nullable FetchPlan fetchPlan) {
@@ -134,15 +145,6 @@ public class RestDataStore extends AbstractDataStore {
         entityStates.setNew(entity, false);
 
         MetaClass metaClass = metadata.getClass(entity);
-
-        if (fetchPlan != null) {
-            Set<String> loadedProperties = fetchPlan.getProperties().stream()
-                    .map(FetchPlanProperty::getName)
-                    .collect(Collectors.toCollection(HashSet::new));
-            EntityEntry entityEntry = EntitySystemAccess.getEntityEntry(entity);
-            entityEntry.setLoadedProperties(loadedProperties);
-            entityEntry.addPropertyChangeListener(new UpdatingLoadedPropertiesListener(), false);
-        }
 
         for (MetaProperty property : metaClass.getProperties()) {
             if (property.getRange().isClass()) {
@@ -162,8 +164,45 @@ public class RestDataStore extends AbstractDataStore {
                         updateEntityStateRecursive(value, valueFetchPlan, visited);
                     }
                 }
+            } else if (property.getRange().isDatatype()
+                    && FileRef.class.isAssignableFrom(property.getRange().asDatatype().getJavaClass())) {
+                // Replace remote file storage name with the corresponding RestFileStorage name in FileRef objects
+                FileRef remoteFileRef = EntityValues.getValue(entity, property.getName());
+                if (remoteFileRef != null) {
+                    FileRef fileRef = new FileRef(convertFromRemoteFileStorage(remoteFileRef.getStorageName()),
+                            remoteFileRef.getPath(), remoteFileRef.getFileName(), remoteFileRef.getParameters());
+                    EntityValues.setValue(entity, property.getName(), fileRef);
+                }
             }
         }
+
+        if (fetchPlan != null) {
+            LoadedPropertiesInfo loadedPropertiesInfo = loadedPropertiesInfoFactory.create();
+            for (FetchPlanProperty fetchPlanProperty : fetchPlan.getProperties()) {
+                loadedPropertiesInfo.registerProperty(fetchPlanProperty.getName(), true);
+            }
+            EntityEntry entityEntry = EntitySystemAccess.getEntityEntry(entity);
+            entityEntry.setLoadedPropertiesInfo(loadedPropertiesInfo);
+            entityEntry.addPropertyChangeListener(new UpdatingLoadedPropertiesListener(), false);
+        }
+    }
+
+    private String convertFromRemoteFileStorage(String remoteStorageName) {
+        for (FileStorage fileStorage : fileStorageLocator.getAll()) {
+            if (fileStorage instanceof RestFileStorage rfs && rfs.getRemoteStorageName().equals(remoteStorageName)) {
+                return rfs.getStorageName();
+            }
+        }
+        return remoteStorageName;
+    }
+
+    private String convertToRemoteFileStorage(String storageName) {
+        for (FileStorage fileStorage : fileStorageLocator.getAll()) {
+            if (fileStorage instanceof RestFileStorage rfs && rfs.getStorageName().equals(storageName)) {
+                return rfs.getRemoteStorageName();
+            }
+        }
+        return storageName;
     }
 
     private String getEntityName(MetaClass localMetaClass) {
@@ -173,10 +212,22 @@ public class RestDataStore extends AbstractDataStore {
     }
 
     @Nullable
-    private String getFetchPlan(LoadContext<?> context) {
-        String fetchPlan = context.getFetchPlan() == null ?
-                null : StringUtils.defaultIfEmpty(context.getFetchPlan().getName(), null);
-        return fetchPlan;
+    private String getFetchPlanNameOrJson(@Nullable FetchPlan fetchPlan) {
+        if (fetchPlan == null)
+            return null;
+        else if (Strings.isNullOrEmpty(fetchPlan.getName())) {
+            if (restCapabilities.isInlineFetchPlanEnabled()) {
+                // optimize URL for frequent case with _base fetch plan
+                FetchPlan baseFetchPlan = fetchPlanRepository.getFetchPlan(fetchPlan.getEntityClass(), FetchPlan.BASE);
+                if (fetchPlan.contentEquals(baseFetchPlan))
+                    return FetchPlan.BASE;
+                else
+                    return fetchPlanSerialization.toJson(fetchPlan, this::getEntityName);
+            } else
+                throw new InvalidFetchPlanException(storeName);
+        } else {
+            return fetchPlan.getName();
+        }
     }
 
     private int getMaxResults(@Nullable LoadContext.Query query) {
@@ -215,7 +266,7 @@ public class RestDataStore extends AbstractDataStore {
 
     @Override
     protected long countAll(LoadContext<?> context) {
-        String entityName = context.getEntityMetaClass().getName();
+        String entityName = getEntityName(context.getEntityMetaClass());
         long count = restInvoker.count(entityName, createRestFilter(context));
         return count;
     }
@@ -223,7 +274,7 @@ public class RestDataStore extends AbstractDataStore {
     @Override
     protected Set<Object> saveAll(SaveContext context) {
         Set<Object> saved = new HashSet<>();
-        saveContextProcessor.normalizeCompositionItems(context);
+        Set<FileRef> fileRefs = saveContextProcessor.process(context);
         for (Object entity : context.getEntitiesToSave()) {
             String entityName = getEntityName(metadata.getClass(entity));
             FetchPlan fetchPlan = null;
@@ -231,7 +282,7 @@ public class RestDataStore extends AbstractDataStore {
             boolean isNew = entityStates.isNew(entity);
             if (isNew) {
                 entityEventManager.publishEntitySavingEvent(entity, true);
-                String entityJson = restSerialization.toJson(entity, true);
+                String entityJson = serializeToJson(entity, true, fileRefs);
                 savedEntityJson = restInvoker.create(entityName, entityJson);
             } else {
                 Object id = EntityValues.getId(entity);
@@ -240,7 +291,7 @@ public class RestDataStore extends AbstractDataStore {
                 }
                 entityEventManager.publishEntitySavingEvent(entity, false);
 
-                String entityJson = restSerialization.toJson(entity, false);
+                String entityJson = serializeToJson(entity, false, fileRefs);
                 savedEntityJson = restInvoker.update(entityName, id.toString(), entityJson);
             }
             Object savedEntity = restSerialization.fromJson(savedEntityJson, entity.getClass());
@@ -256,6 +307,29 @@ public class RestDataStore extends AbstractDataStore {
             saved.add(savedEntity);
         }
         return saved;
+    }
+
+    private String serializeToJson(Object entity, boolean isNew, Set<FileRef> fileRefs) {
+        String json = restSerialization.toJson(entity, isNew);
+        if (fileRefs.isEmpty()) {
+            return json;
+        } else {
+            // Replace file storage name in FileRef objects. This cannot be done in Java objects because then they
+            // would be modified which could affect the calling code.
+            // Using simple string replace instead of JSON/Java transformations for better performance.
+            StringBuilder result = new StringBuilder(json);
+            for (FileRef fileRef : fileRefs) {
+                String storageName = fileRef.getStorageName();
+                String remoteStorageName = convertToRemoteFileStorage(storageName);
+                if (!remoteStorageName.equals(storageName)) {
+                    int idx;
+                    while ((idx = result.indexOf(storageName)) != -1) {
+                        result.replace(idx, idx + storageName.length(), remoteStorageName);
+                    }
+                }
+            }
+            return result.toString();
+        }
     }
 
     @Override
@@ -318,18 +392,19 @@ public class RestDataStore extends AbstractDataStore {
     public void setName(String name) {
         storeName = name;
         restInvoker = applicationContext.getBean(RestInvoker.class, storeName);
+        restCapabilities = new RestCapabilities(restInvoker);
     }
 
-    protected static class DummyTransactionContextState implements TransactionContextState {
+    private static class DummyTransactionContextState implements TransactionContextState {
     }
 
     private static class UpdatingLoadedPropertiesListener implements EntityPropertyChangeListener, Serializable {
         @Override
         public void propertyChanged(EntityPropertyChangeEvent event) {
             String property = event.getProperty();
-            Set<String> loadedProperties = EntitySystemAccess.getEntityEntry(event.getItem()).getLoadedProperties();
-            if (loadedProperties != null) {
-                loadedProperties.add(property);
+            LoadedPropertiesInfo loadedPropertiesInfo = EntitySystemAccess.getEntityEntry(event.getItem()).getLoadedPropertiesInfo();
+            if (loadedPropertiesInfo != null) {
+                loadedPropertiesInfo.registerProperty(property, true);
             }
         }
     }
